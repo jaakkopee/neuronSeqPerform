@@ -52,7 +52,9 @@ class FMSynth:
 
         # ── neuron-driven amplitude envelope  (NUM_OPERATORS × COLS) ──────────
         # indexed as [operator_row, preset_col]
-        self._env = np.zeros((NUM_OPERATORS, COLS), np.float64)
+        # Seeded at 0.5 so audio is audible from the very first step;
+        # spikes drive it up, silence lets it decay.
+        self._env = np.full((NUM_OPERATORS, COLS), 0.5, np.float64)
 
         # ── which voice is active (only active voice is rendered) ─────────────
         self._active_step = 0

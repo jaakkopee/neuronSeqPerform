@@ -23,7 +23,8 @@ CELL_H        = 70
 NEURON_RADIUS = 27
 
 # ── MIDI ──────────────────────────────────────────────────────────────────────
-MIDI_CHANNEL = 0   # 0-indexed
+MIDI_CHANNEL   = 0           # 0-indexed
+MIDI_PORT_NAME = "MPD218"    # substring match – set to "" to use first port
 
 # ── Scales (semitone offsets from root) ───────────────────────────────────────
 SCALES = {

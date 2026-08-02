@@ -24,7 +24,7 @@ import pygame
 from config import (
     SAMPLE_RATE, BUFFER_SIZE, COLS,
     MASTER_TEMPO, QUANTIZATION_STRENGTH, SWING_AMOUNT,
-    SCALES, SCALE_NAMES,
+    SCALES, SCALE_NAMES, MIDI_PORT_NAME,
 )
 from model.lif_network import LIFNetwork
 from model.fm_synth    import FMSynth
@@ -71,7 +71,7 @@ def main() -> None:
 
     # ── MIDI ───────────────────────────────────────────────────────────────────
     midi = MIDIHandler(network, synth, config_state)
-    midi_ok = midi.open_port()
+    midi_ok = midi.open_port(MIDI_PORT_NAME)
     if midi_ok:
         midi.start()
 

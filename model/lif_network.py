@@ -35,7 +35,9 @@ class LIFNetwork:
         self.weights       = self._base_weights.copy()
 
         # ── external drive ────────────────────────────────────────────────────
-        self.external_drive = np.full(n, 0.5, np.float32)   # bias current (spontaneous activity)
+        # Drive is drawn above threshold so neurons fire spontaneously;
+        # heterogeneous values produce varied firing rates across the network.
+        self.external_drive = np.random.uniform(1.1, 1.8, n).astype(np.float32)
 
         # ── display frequencies (set by FMSynth) ─────────────────────────────
         self.frequencies  = np.zeros((rows, cols), np.float32)
@@ -88,7 +90,9 @@ class LIFNetwork:
         self.weights = self._base_weights * self._weight_scale
 
     def set_global_drive(self, value: float) -> None:
-        self.external_drive[:] = float(value)
+        # value is normalised 0-1 from MIDI; map to a musically useful drive range
+        # (0 → below threshold, 1 → well above threshold for fast firing)
+        self.external_drive[:] = 0.5 + float(value) * 1.5   # 0.5 – 2.0
 
     def set_neuron_drive(self, row: int, col: int, value: float) -> None:
         self.external_drive[row * self.cols + col] = float(value)

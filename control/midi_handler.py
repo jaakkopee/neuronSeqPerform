@@ -63,7 +63,19 @@ class MIDIHandler:
         if not available:
             print("[MIDI] No input ports found – running without MIDI.")
             return False
-        target = port_name if (port_name and port_name in available) else available[0]
+        target = None
+        if port_name:
+            # Case-insensitive substring search
+            needle = port_name.lower()
+            for name in available:
+                if needle in name.lower():
+                    target = name
+                    break
+        if target is None:
+            target = available[0]
+            if port_name:
+                print(f"[MIDI] '{port_name}' not found. Available: {available}")
+                print(f"[MIDI] Falling back to: {target}")
         self._port = mido.open_input(target)
         print(f"[MIDI] Opened: {target}")
         return True
@@ -110,7 +122,7 @@ class MIDIHandler:
             self._network.set_weight_scale(scale)
 
         elif cc == 4:  # global drive
-            self._network.set_global_drive(n * 2.0)
+            self._network.set_global_drive(n)
 
         elif cc == 5:  # tempo
             self._cfg["tempo"] = 40.0 + n * 160.0
@@ -170,7 +182,7 @@ class MIDIHandler:
         elif t == "tau":
             self._network.set_tau(5.0 + n * 95.0)
         elif t == "drive":
-            self._network.set_global_drive(n * 2.0)
+            self._network.set_global_drive(n)
         elif t == "tempo":
             self._cfg["tempo"] = 40.0 + n * 160.0
         elif t == "quantize":
