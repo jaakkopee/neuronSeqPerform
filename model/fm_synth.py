@@ -41,10 +41,11 @@ class FMSynth:
         self._mod_index_scale   = 0.25   # default: light FM (0 = clean sine, 3 = dense)
         self._ratio_scale       = 1.0
         # ── texture controls ──────────────────────────────────────────────────
-        self._active_pairs      = 2      # how many carrier-mod pairs render (1-4)
-        # per-type envelope decay multiplier (applied each neuron-activation call)
-        self._decay_carrier     = 0.992  # slower → more sustain
-        self._decay_mod         = 0.92   # faster → shorter timbre burst
+        self._active_pairs      = 2      # carrier-mod pairs rendered (1-4)
+        # Per-audio-buffer decay factors (computed by set_decay_speed).
+        # Carrier ops (even rows) sustain longer; modulator ops (odd) shorter.
+        self._per_buf_carrier   = 0.9286  # speed=0.5 default
+        self._per_buf_mod       = 0.8700  # speed=0.5 default
 
         # ── voice base frequencies  (one per column / preset) ─────────────────
         self._base_freqs = np.full(COLS, 440.0, np.float64)
@@ -57,9 +58,8 @@ class FMSynth:
 
         # ── neuron-driven amplitude envelope  (NUM_OPERATORS × COLS) ──────────
         # indexed as [operator_row, preset_col]
-        # Seeded at a low value so the first tick is audible but not dense;
-        # spikes drive it toward 1.0, absence lets it decay.
-        self._env = np.full((NUM_OPERATORS, COLS), 0.15, np.float64)
+        # Zero at start; trigger_column() gates it to 1.0 when neurons fire.
+        self._env = np.zeros((NUM_OPERATORS, COLS), np.float64)
 
         # ── which voice is active (only active voice is rendered) ─────────────
         self._active_step = 0
@@ -101,28 +101,17 @@ class FMSynth:
             self._voice_active[step] = True
             self._active_step = step
 
-    # ── neuron activation coupling ────────────────────────────────────────────
-    def update_neuron_activations(self, spikes: np.ndarray) -> None:
+    def trigger_column(self, accumulated_spikes: np.ndarray, col: int) -> None:
         """
-        spikes : bool array (ROWS, COLS) from LIF network.
-        Rows map to operators; columns map to presets.
+        Hard-gate the envelope for column `col` directly from accumulated spikes.
+
+        accumulated_spikes : bool array (ROWS, COLS) = OR of all LIF micro-steps.
+        Firing operators  → env = 1.0  (full amplitude / modulation)
+        Silent operators  → env = 0.0  (completely muted)
+        Decay then runs per audio buffer inside generate().
         """
         with self._lock:
-            spikes_f = spikes.astype(np.float64)          # (ROWS, COLS)
-
-            # Carrier rows (even) and modulator rows (odd) decay at different rates
-            # both controlled by _decay_carrier / _decay_mod (set via set_decay_speed)
-            decay = np.where(
-                np.arange(NUM_OPERATORS) % 2 == 0,
-                self._decay_carrier,
-                self._decay_mod
-            )
-            decay = decay[:, np.newaxis]                   # broadcast over cols
-
-            self._env *= decay
-            self._env = np.where(spikes_f == 1.0,
-                                 np.minimum(1.0, self._env + 0.4),
-                                 self._env)
+            self._env[:, col] = accumulated_spikes[:, col].astype(np.float64)
 
     # ── display info ──────────────────────────────────────────────────────────
     def get_operator_frequencies(self) -> np.ndarray:
@@ -145,13 +134,18 @@ class FMSynth:
 
     def set_decay_speed(self, speed: float) -> None:
         """
-        speed 0.0 → very slow decay (sustained, dense texture)
-        speed 1.0 → fast decay (staccato, sparse texture)
+        speed 0.0 → slow decay (sustained, long tail)
+        speed 1.0 → fast decay (staccato, percussive)
+
+        Values are per-audio-buffer (512/44100 ≈11.6 ms).
+        At default 120 BPM (10.8 buffers/step):
+          speed 0 → carrier keeps ~99% amplitude per step
+          speed 1 → carrier drops to ~19% by next step
         """
         s = max(0.0, min(1.0, float(speed)))
         with self._lock:
-            self._decay_carrier = 0.9997 - s * (0.9997 - 0.970)
-            self._decay_mod     = 0.9800 - s * (0.9800 - 0.700)
+            self._per_buf_carrier = 0.9953 - s * (0.9953 - 0.862)
+            self._per_buf_mod     = 0.9900 - s * (0.9900 - 0.750)
 
     def set_ratio_scale(self, scale: float) -> None:
         with self._lock:
@@ -209,6 +203,15 @@ class FMSynth:
                 if n_active > 0:
                     voice /= n_active
                 output += voice
+
+                # Per-buffer envelope decay for this voice.
+                # Carriers (even ops) decay slower; modulators (odd) faster.
+                decay_vec = np.where(
+                    np.arange(NUM_OPERATORS) % 2 == 0,
+                    self._per_buf_carrier,
+                    self._per_buf_mod
+                )
+                self._env[:, col] *= decay_vec
 
             # soft limiting + master volume
             output = np.tanh(output * 0.7) * self.master_volume

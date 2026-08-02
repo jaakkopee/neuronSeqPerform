@@ -22,7 +22,7 @@ import sounddevice as sd
 import pygame
 
 from config import (
-    SAMPLE_RATE, BUFFER_SIZE, COLS,
+    SAMPLE_RATE, BUFFER_SIZE, COLS, ROWS,
     MASTER_TEMPO, QUANTIZATION_STRENGTH, SWING_AMOUNT,
     SCALES, SCALE_NAMES, MIDI_PORT_NAME,
 )
@@ -143,14 +143,20 @@ def main() -> None:
         fire_at = last_step_time + step_dur + swing_offset + jitter
 
         if now >= fire_at:
-            # ── LIF network step(s) ───────────────────────────────────────────
-            for _ in range(LIF_STEPS_PER_TICK):
-                spikes = network.step()
+            # ── advance to next step ──────────────────────────────────────────
+            current_step = (current_step + 1) % COLS
+            synth.set_active_step(current_step)
 
-            # ── couple spikes → FM envelopes ──────────────────────────────────
-            synth.update_neuron_activations(spikes)
+            # ── LIF micro-steps: accumulate spikes across all sub-steps ───────
+            accumulated = np.zeros((ROWS, COLS), bool)
+            for _ in range(LIF_STEPS_PER_TICK):
+                accumulated |= network.step()
+
+            # ── hard-gate FM env from accumulated spikes for active column ────
+            synth.trigger_column(accumulated, current_step)
 
             # ── update view state ─────────────────────────────────────────────
+            spikes     = accumulated
             potentials = network.get_potentials()
             # Refresh display frequencies (may have changed via MIDI)
             network.frequencies = synth.get_operator_frequencies()
@@ -166,9 +172,6 @@ def main() -> None:
                 config_state = config_state,
             )
 
-            # ── advance step ──────────────────────────────────────────────────
-            current_step = (current_step + 1) % COLS
-            synth.set_active_step(current_step)
             # keep last_step_time on the ideal grid to avoid drift
             last_step_time = fire_at
 
