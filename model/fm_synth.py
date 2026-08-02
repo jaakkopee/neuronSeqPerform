@@ -57,12 +57,15 @@ class FMSynth:
         self._phases = np.zeros((COLS, NUM_OPERATORS), np.float64)
 
         # ── neuron-driven amplitude envelope  (NUM_OPERATORS × COLS) ──────────
-        # indexed as [operator_row, preset_col]
-        # Zero at start; trigger_column() gates it to 1.0 when neurons fire.
+        # Zero at start; trigger_and_activate() gates it from spike state.
         self._env = np.zeros((NUM_OPERATORS, COLS), np.float64)
 
-        # ── which voice is active (only active voice is rendered) ─────────────
-        self._active_step = 0
+        # ── per-voice crossfade gain (enables click-free voice transitions) ───
+        # Ramped linearly within each audio buffer: 0.0 = silent, 1.0 = full.
+        self._voice_gain   = np.zeros(COLS, np.float64)
+
+        # ── which voice is active (desired target for crossfade) ──────────────
+        self._active_step  = 0
         self._voice_active = np.zeros(COLS, bool)
         self._voice_active[0] = True
 
@@ -94,7 +97,7 @@ class FMSynth:
             self._base_freqs[col] = freq
             self._frequencies[col] = freq * self._ratios[col] * self._ratio_scale
 
-    # ── step control ──────────────────────────────────────────────────────────
+    # ── step / trigger control ────────────────────────────────────────────────
     def set_active_step(self, step: int) -> None:
         with self._lock:
             self._voice_active[:] = False
@@ -102,15 +105,20 @@ class FMSynth:
             self._active_step = step
 
     def trigger_column(self, accumulated_spikes: np.ndarray, col: int) -> None:
-        """
-        Hard-gate the envelope for column `col` directly from accumulated spikes.
+        """Gate env for a column from spike state (env decay runs in generate)."""
+        with self._lock:
+            self._env[:, col] = accumulated_spikes[:, col].astype(np.float64)
 
-        accumulated_spikes : bool array (ROWS, COLS) = OR of all LIF micro-steps.
-        Firing operators  → env = 1.0  (full amplitude / modulation)
-        Silent operators  → env = 0.0  (completely muted)
-        Decay then runs per audio buffer inside generate().
+    def trigger_and_activate(self, accumulated_spikes: np.ndarray, col: int) -> None:
+        """
+        Atomically switch the active voice AND gate the envelope from spikes.
+        Using one lock acquisition ensures the audio callback never sees a
+        mismatch between voice_active and env state, eliminating click sources.
         """
         with self._lock:
+            self._voice_active[:] = False
+            self._voice_active[col] = True
+            self._active_step = col
             self._env[:, col] = accumulated_spikes[:, col].astype(np.float64)
 
     # ── display info ──────────────────────────────────────────────────────────
@@ -159,59 +167,74 @@ class FMSynth:
         """
         with self._lock:
             output = np.zeros(frames, np.float64)
+            n      = np.arange(frames, dtype=np.float64)
 
             for col in range(COLS):
-                if not self._voice_active[col]:
-                    continue
+                # ── voice crossfade gain ───────────────────────────────────
+                # Ramp linearly within the buffer: active→1.0, inactive→0.0.
+                # One buffer (~11.6 ms) is enough for a click-free transition.
+                gain_start = self._voice_gain[col]
+                gain_end   = 1.0 if self._voice_active[col] else 0.0
+                # Cap change to ±1.0 per buffer (i.e. full transition per buf)
+                gain_end = np.clip(gain_end,
+                                   gain_start - 1.0,
+                                   gain_start + 1.0)
+                self._voice_gain[col] = gain_end
 
-                voice = np.zeros(frames, np.float64)
+                if gain_start == 0.0 and gain_end == 0.0:
+                    continue                          # fully silent, skip
+
+                gain_ramp = np.linspace(gain_start, gain_end, frames)
+
+                voice    = np.zeros(frames, np.float64)
                 n_active = 0
 
                 for pair in range(self._active_pairs):
-                    c_op = pair * 2      # carrier operator index
-                    m_op = pair * 2 + 1  # modulator operator index
+                    c_op = pair * 2
+                    m_op = pair * 2 + 1
 
                     f_car = self._frequencies[col, c_op]
                     f_mod = self._frequencies[col, m_op]
-
                     if f_car <= 0.0:
                         continue
 
-                    level_car = self._levels[col, c_op] * self._env[c_op, col]
-                    mi        = (self._mod_indices[col, m_op]
-                                 * self._env[m_op, col]
-                                 * self._mod_index_scale)
+                    # Env ramp within buffer: smooth decay from start to end.
+                    # This eliminates the per-buffer amplitude step.
+                    env_c0 = self._env[c_op, col]
+                    env_m0 = self._env[m_op, col]
+                    env_c1 = env_c0 * self._per_buf_carrier
+                    env_m1 = env_m0 * self._per_buf_mod
 
-                    # --- phase arrays -----------------------------------------
+                    level_ramp = (self._levels[col, c_op]
+                                  * np.linspace(env_c0, env_c1, frames))
+                    mi_ramp    = (self._mod_indices[col, m_op]
+                                  * self._mod_index_scale
+                                  * np.linspace(env_m0, env_m1, frames))
+
                     phi_car_inc = 2.0 * np.pi * f_car / self._sr
-                    phi_mod_inc = 2.0 * np.pi * f_mod / self._sr if f_mod > 0 else 0.0
+                    phi_mod_inc = (2.0 * np.pi * f_mod / self._sr
+                                   if f_mod > 0 else 0.0)
 
-                    n = np.arange(frames, dtype=np.float64)
                     phi_mod = self._phases[col, m_op] + phi_mod_inc * n
                     phi_car = self._phases[col, c_op] + phi_car_inc * n
 
-                    sample = level_car * np.sin(phi_car + mi * np.sin(phi_mod))
-                    voice += sample
+                    voice += level_ramp * np.sin(phi_car + mi_ramp * np.sin(phi_mod))
                     n_active += 1
 
-                    # advance phase accumulators
-                    self._phases[col, c_op] = (self._phases[col, c_op]
-                                               + phi_car_inc * frames) % (2.0 * np.pi)
-                    self._phases[col, m_op] = (self._phases[col, m_op]
-                                               + phi_mod_inc * frames) % (2.0 * np.pi)
+                    self._phases[col, c_op] = ((self._phases[col, c_op]
+                                                + phi_car_inc * frames)
+                                               % (2.0 * np.pi))
+                    self._phases[col, m_op] = ((self._phases[col, m_op]
+                                                + phi_mod_inc * frames)
+                                               % (2.0 * np.pi))
+
+                    # Commit decayed env values after generating the ramp
+                    self._env[c_op, col] = env_c1
+                    self._env[m_op, col] = env_m1
 
                 if n_active > 0:
                     voice /= n_active
-                output += voice
-
-                # Per-buffer envelope decay for this voice.
-                # Carriers (even ops) decay slower; modulators (odd) faster.
-                decay_vec = np.where(
-                    np.arange(NUM_OPERATORS) % 2 == 0,
-                    self._per_buf_carrier,
-                    self._per_buf_mod
-                )
-                self._env[:, col] *= decay_vec
+                output += voice * gain_ramp
 
             # soft limiting + master volume
             output = np.tanh(output * 0.7) * self.master_volume

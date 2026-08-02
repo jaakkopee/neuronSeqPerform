@@ -144,15 +144,14 @@ def main() -> None:
         if now >= fire_at:
             # ── advance to next step ──────────────────────────────────────────
             current_step = (current_step + 1) % COLS
-            synth.set_active_step(current_step)
 
             # ── LIF micro-steps: accumulate spikes across all sub-steps ───────
             accumulated = np.zeros((ROWS, COLS), bool)
             for _ in range(config_state["lif_steps"]):
                 accumulated |= network.step()
 
-            # ── hard-gate FM env from accumulated spikes for active column ────
-            synth.trigger_column(accumulated, current_step)
+            # ── atomically activate voice + gate env from spikes ──────────────
+            synth.trigger_and_activate(accumulated, current_step)
 
             # ── update view state ─────────────────────────────────────────────
             spikes     = accumulated
