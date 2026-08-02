@@ -199,36 +199,103 @@ class MatrixView:
         self._screen.blit(surf, (MARGIN_LEFT, 10))
 
     def _draw_info_panel(self) -> None:
-        y    = MARGIN_TOP + ROWS * CELL_H + 14
-        cfg  = self.config_state
+        cfg   = self.config_state
+        y     = MARGIN_TOP + ROWS * CELL_H + 8
+        bw    = (SCREEN_WIDTH - 2 * MARGIN_LEFT) // 6   # block width
 
-        tempo   = cfg.get("tempo",                  120.0)
-        quant   = cfg.get("quantization_strength",  0.85)
-        swing   = cfg.get("swing_amount",           0.0)
-        scale   = cfg.get("scale_name",             "major")
-        root    = cfg.get("root_note",              60)
-        at_tgt  = cfg.get("aftertouch_target",      "threshold")
-        pairs   = cfg.get("active_pairs",           2)
-        decay   = cfg.get("decay_speed",            0.5)
-        step    = self.current_step + 1
-
-        note_name = _NOTE_NAMES[root % 12]
-
-        segments = [
-            f"Tempo {tempo:6.1f} BPM",
-            f"Quant {quant:.2f}  Swing {swing:.2f}",
-            f"Scale {note_name} {scale}",
-            f"Pairs {pairs}/4  Decay {decay:.2f}",
-            f"AT\u2192{at_tgt}",
-            f"Step {step:2d}/{COLS}",
+        # Parameter tables: (cc_label, short_name, config_key, lo, hi)
+        bank_a = [
+            ("CC3",  "Tempo",   "tempo",                 40.0,  200.0),
+            ("CC9",  "Volume",  "master_volume",          0.0,    1.0),
+            ("CC12", "Pairs",   "active_pairs",           1.0,    4.0),
+            ("CC13", "Decay",   "decay_speed",            0.0,    1.0),
+            ("CC14", "FMmod",   "mod_index_scale",        0.0,    3.0),
+            ("CC15", "Quant",   "quantization_strength",  0.0,    1.0),
+        ]
+        bank_b = [
+            ("CC16", "Thresh",  "threshold",    0.3,  2.0),
+            ("CC17", "Tau",     "tau",          5.0, 100.0),
+            ("CC18", "Wt.Sc",   "weight_scale", 0.0,  3.0),
+            ("CC19", "Drive",   "drive_n",      0.0,  1.0),
+            ("CC20", "Swing",   "swing_amount", 0.0,  0.5),
+            ("CC21", "Ratio",   "ratio_scale",  0.5,  2.0),
         ]
 
-        x = MARGIN_LEFT
-        dx = (SCREEN_WIDTH - 2 * MARGIN_LEFT) // len(segments)
-        for seg in segments:
-            surf = self._fn_medium.render(seg, True, INFO_C)
-            self._screen.blit(surf, (x, y))
-            x += dx
+        self._draw_bank_header("BANK A  performance", y, CARRIER_C)
+        y += 14
+        for i, (cc, name, key, lo, hi) in enumerate(bank_a):
+            val  = cfg.get(key, lo)
+            norm = max(0.0, min(1.0, (float(val) - lo) / max(hi - lo, 1e-9)))
+            self._draw_param_block(MARGIN_LEFT + i * bw, y, bw - 3, 40,
+                                   cc, name, self._fmt(key, val), norm, CARRIER_C)
+
+        y += 45
+        self._draw_bank_header("BANK B  network", y, MODULATOR_C)
+        y += 14
+        for i, (cc, name, key, lo, hi) in enumerate(bank_b):
+            val  = cfg.get(key, lo)
+            norm = max(0.0, min(1.0, (float(val) - lo) / max(hi - lo, 1e-9)))
+            self._draw_param_block(MARGIN_LEFT + i * bw, y, bw - 3, 40,
+                                   cc, name, self._fmt(key, val), norm, MODULATOR_C)
+
+        y += 45
+        # Status line
+        root      = cfg.get("root_note", 60)
+        note_name = _NOTE_NAMES[root % 12]
+        scale     = cfg.get("scale_name", "major")
+        at_tgt    = cfg.get("aftertouch_target", "threshold")
+        step      = self.current_step + 1
+        status    = (f"Step {step:2d}/{COLS}    "
+                     f"Scale: {note_name} {scale}    "
+                     f"CC22: AT \u2192 {at_tgt}")
+        surf = self._fn_medium.render(status, True, TEXT_DIM)
+        self._screen.blit(surf, (MARGIN_LEFT, y))
+
+    # ── helpers ────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _fmt(key: str, val) -> str:
+        if key == "tempo":          return f"{val:.0f}BPM"
+        if key == "master_volume":  return f"{val:.2f}"
+        if key == "active_pairs":   return f"{int(val)}/4"
+        if key == "decay_speed":    return f"{val:.2f}"
+        if key == "mod_index_scale":return f"{val:.2f}"
+        if key == "quantization_strength": return f"{val:.2f}"
+        if key == "threshold":      return f"{val:.2f}"
+        if key == "tau":            return f"{val:.0f}ms"
+        if key == "weight_scale":   return f"{val:.2f}"
+        if key == "drive_n":        return f"{val:.2f}"
+        if key == "swing_amount":   return f"{val:.2f}"
+        if key == "ratio_scale":    return f"{val:.2f}"
+        return str(val)
+
+    def _draw_bank_header(self, text: str, y: int, color) -> None:
+        surf = self._fn_small.render(text, True, color)
+        self._screen.blit(surf, (MARGIN_LEFT, y))
+        x1 = MARGIN_LEFT + surf.get_width() + 8
+        x2 = SCREEN_WIDTH - MARGIN_LEFT
+        pygame.draw.line(self._screen, (38, 42, 62), (x1, y + 5), (x2, y + 5))
+
+    def _draw_param_block(self, x: int, y: int, w: int, h: int,
+                          cc_lbl: str, name: str, val_str: str,
+                          norm: float, color) -> None:
+        # Background
+        pygame.draw.rect(self._screen, (16, 18, 30), (x, y, w, h), border_radius=3)
+        # CC label (top-left, tiny dim)
+        s = self._fn_small.render(cc_lbl, True, (60, 68, 100))
+        self._screen.blit(s, (x + 3, y + 2))
+        # Parameter name
+        s = self._fn_medium.render(name, True, color)
+        self._screen.blit(s, (x + 3, y + 13))
+        # Value (right-aligned, same row as name)
+        s = self._fn_small.render(val_str, True, TEXT_BRIGHT)
+        self._screen.blit(s, (x + w - s.get_width() - 3, y + 15))
+        # Bar background
+        by = y + h - 7
+        pygame.draw.rect(self._screen, (38, 42, 60), (x + 3, by, w - 6, 4), border_radius=2)
+        # Bar fill
+        fw = max(0, int((w - 6) * norm))
+        if fw > 0:
+            pygame.draw.rect(self._screen, color, (x + 3, by, fw, 4), border_radius=2)
 
     # ── event / tick ───────────────────────────────────────────────────────────
     def handle_events(self) -> bool:

@@ -120,10 +120,12 @@ class MIDIHandler:
 
         # ── Bank A : performance ───────────────────────────────────────────────
         if cc == 3:    # K1  tempo
-            self._cfg["tempo"] = 40.0 + n * 160.0
+            v = 40.0 + n * 160.0
+            self._cfg["tempo"] = v
 
         elif cc == 9:  # K2  master volume
             self._synth.master_volume = n
+            self._cfg["master_volume"] = n
 
         elif cc == 12:  # K3  active operator pairs (texture density)
             pairs = 1 + round(n * 3)
@@ -135,30 +137,42 @@ class MIDIHandler:
             self._cfg["decay_speed"] = n
 
         elif cc == 14:  # K5  FM modulation index (timbre brightness)
-            self._synth.set_mod_index_scale(n * 3.0)
+            v = n * 3.0
+            self._synth.set_mod_index_scale(v)
+            self._cfg["mod_index_scale"] = v
 
         elif cc == 15:  # K6  quantization strength
             self._cfg["quantization_strength"] = n
 
         # ── Bank B : network ──────────────────────────────────────────────────
         elif cc == 16:  # K1  network firing threshold
-            self._network.set_threshold(0.3 + n * 1.7)
+            v = 0.3 + n * 1.7
+            self._network.set_threshold(v)
+            self._cfg["threshold"] = v
 
         elif cc == 17:  # K2  network time constant τ
-            self._network.set_tau(5.0 + n * 95.0)
+            v = 5.0 + n * 95.0
+            self._network.set_tau(v)
+            self._cfg["tau"] = v
 
         elif cc == 18:  # K3  synaptic weight scale
-            self._weight_scale = n * 3.0
-            self._network.set_weight_scale(self._weight_scale)
+            v = n * 3.0
+            self._weight_scale = v
+            self._network.set_weight_scale(v)
+            self._cfg["weight_scale"] = v
 
         elif cc == 19:  # K4  global drive
             self._network.set_global_drive(n)
+            self._cfg["drive_n"] = n
 
         elif cc == 20:  # K5  swing amount
-            self._cfg["swing_amount"] = n * 0.5
+            v = n * 0.5
+            self._cfg["swing_amount"] = v
 
         elif cc == 21:  # K6  FM ratio scale
-            self._synth.set_ratio_scale(0.5 + n * 1.5)
+            v = 0.5 + n * 1.5
+            self._synth.set_ratio_scale(v)
+            self._cfg["ratio_scale"] = v
 
         # ── Bank C : extras ───────────────────────────────────────────────────
         elif cc == 22:  # K1  aftertouch target selector

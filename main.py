@@ -50,14 +50,24 @@ def _build_initial_freqs(root_midi: int = 60, scale_name: str = "major") -> list
 def main() -> None:
     # ── shared runtime config (written by MIDI, read by main loop + view) ─────
     config_state = {
+        # Bank A
         "tempo":                  MASTER_TEMPO,
+        "master_volume":          0.5,
+        "active_pairs":           2,
+        "decay_speed":            0.5,
+        "mod_index_scale":        0.25,
         "quantization_strength":  QUANTIZATION_STRENGTH,
+        # Bank B
+        "threshold":              1.0,
+        "tau":                    20.0,
+        "weight_scale":           1.0,
+        "drive_n":                0.5,
         "swing_amount":           SWING_AMOUNT,
+        "ratio_scale":            1.0,
+        # Bank C / status
         "scale_name":             "major",
         "root_note":              60,
         "aftertouch_target":      "threshold",
-        "active_pairs":           2,
-        "decay_speed":            0.5,
     }
 
     # ── model ──────────────────────────────────────────────────────────────────
