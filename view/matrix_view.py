@@ -202,22 +202,24 @@ class MatrixView:
         y    = MARGIN_TOP + ROWS * CELL_H + 14
         cfg  = self.config_state
 
-        tempo  = cfg.get("tempo",                  120.0)
-        quant  = cfg.get("quantization_strength",  0.85)
-        swing  = cfg.get("swing_amount",           0.0)
-        scale  = cfg.get("scale_name",             "major")
-        root   = cfg.get("root_note",              60)
-        at_tgt = cfg.get("aftertouch_target",      "threshold")
-        step   = self.current_step + 1
+        tempo   = cfg.get("tempo",                  120.0)
+        quant   = cfg.get("quantization_strength",  0.85)
+        swing   = cfg.get("swing_amount",           0.0)
+        scale   = cfg.get("scale_name",             "major")
+        root    = cfg.get("root_note",              60)
+        at_tgt  = cfg.get("aftertouch_target",      "threshold")
+        pairs   = cfg.get("active_pairs",           2)
+        decay   = cfg.get("decay_speed",            0.5)
+        step    = self.current_step + 1
 
         note_name = _NOTE_NAMES[root % 12]
 
         segments = [
             f"Tempo {tempo:6.1f} BPM",
-            f"Quant {quant:.2f}",
-            f"Swing {swing:.2f}",
+            f"Quant {quant:.2f}  Swing {swing:.2f}",
             f"Scale {note_name} {scale}",
-            f"AT → {at_tgt}",
+            f"Pairs {pairs}/4  Decay {decay:.2f}",
+            f"AT\u2192{at_tgt}",
             f"Step {step:2d}/{COLS}",
         ]
 

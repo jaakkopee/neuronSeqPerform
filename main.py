@@ -56,6 +56,8 @@ def main() -> None:
         "scale_name":             "major",
         "root_note":              60,
         "aftertouch_target":      "threshold",
+        "active_pairs":           2,
+        "decay_speed":            0.5,
     }
 
     # ── model ──────────────────────────────────────────────────────────────────

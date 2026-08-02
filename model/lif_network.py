@@ -35,9 +35,8 @@ class LIFNetwork:
         self.weights       = self._base_weights.copy()
 
         # ── external drive ────────────────────────────────────────────────────
-        # Drive is drawn above threshold so neurons fire spontaneously;
-        # heterogeneous values produce varied firing rates across the network.
-        self.external_drive = np.random.uniform(1.1, 1.8, n).astype(np.float32)
+        # Just above threshold with mild variation → spontaneous but relaxed firing.
+        self.external_drive = np.random.uniform(1.0, 1.2, n).astype(np.float32)
 
         # ── display frequencies (set by FMSynth) ─────────────────────────────
         self.frequencies  = np.zeros((rows, cols), np.float32)

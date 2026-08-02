@@ -1,19 +1,26 @@
 """
 MIDI input handler (runs in a daemon thread).
 
-CC map  (channel 0 by default, see config.MIDI_CHANNEL)
-────────────────────────────────────────────────────────
-  CC  1  – network firing threshold      (0.3 – 2.0)
-  CC  2  – network time constant τ       (5 – 100 ms)
-  CC  3  – synaptic weight scale         (0.0 – 3.0)
-  CC  4  – global external drive         (0.0 – 2.0)
-  CC  5  – master tempo                  (40 – 200 BPM)
-  CC  6  – quantization strength         (0.0 – 1.0)
-  CC  7  – swing amount                  (0.0 – 0.5)
-  CC  8  – master volume                 (0.0 – 1.0)
-  CC  9  – FM ratio scale                (0.5 – 2.0)
-  CC 10  – FM modulation index scale     (0.0 – 3.0)
-  CC 11  – aftertouch target selector    (selects from AFTERTOUCH_TARGETS)
+MPD218 knob layout  (all CCs 0-127, channel 0)
+────────────────────────────────────────────────
+  BANK A  ── performance controls ─────────────────────────────────────────────
+  CC  3   K1  master tempo              (40 – 200 BPM)
+  CC  9   K2  master volume             (0.0 – 1.0)
+  CC 12   K3  active operator pairs     (1 – 4)        texture density
+  CC 13   K4  envelope decay speed      (0.0 – 1.0)    sustain ↔ staccato
+  CC 14   K5  FM modulation index       (0.0 – 3.0)    clean ↔ dense spectrum
+  CC 15   K6  quantization strength     (0.0 – 1.0)
+
+  BANK B  ── network controls ─────────────────────────────────────────────────
+  CC 16   K1  network firing threshold  (0.3 – 2.0)
+  CC 17   K2  network time constant τ   (5 – 100 ms)
+  CC 18   K3  synaptic weight scale     (0.0 – 3.0)
+  CC 19   K4  global external drive     (0.0 – 1.0)
+  CC 20   K5  swing amount              (0.0 – 0.5)
+  CC 21   K6  FM ratio scale            (0.5 – 2.0)
+
+  BANK C  ── extras ────────────────────────────────────────────────────────────
+  CC 22   K1  aftertouch target selector
 
 Note On
 ────────
@@ -22,7 +29,7 @@ Note On
 
 Aftertouch / Channel Pressure
 ───────────────────────────────
-  Applies to the parameter selected by CC 11.
+  Applies to the parameter selected by CC 22.
 """
 
 import threading
@@ -35,6 +42,7 @@ class MIDIHandler:
     AFTERTOUCH_TARGETS = [
         "threshold", "tau", "drive", "tempo",
         "quantize",  "swing", "master_vol", "mod_index_scale",
+        "active_pairs", "decay_speed",
     ]
 
     # ── construction ──────────────────────────────────────────────────────────
@@ -110,41 +118,53 @@ class MIDIHandler:
     def _on_cc(self, cc: int, value: int) -> None:
         n = value / 127.0   # normalised 0-1
 
-        if cc == 1:   # threshold
-            self._network.set_threshold(0.3 + n * 1.7)
-
-        elif cc == 2:  # tau
-            self._network.set_tau(5.0 + n * 95.0)
-
-        elif cc == 3:  # weight scale
-            scale = n * 3.0
-            self._weight_scale = scale
-            self._network.set_weight_scale(scale)
-
-        elif cc == 4:  # global drive
-            self._network.set_global_drive(n)
-
-        elif cc == 5:  # tempo
+        # ── Bank A : performance ───────────────────────────────────────────────
+        if cc == 3:    # K1  tempo
             self._cfg["tempo"] = 40.0 + n * 160.0
 
-        elif cc == 6:  # quantization
-            self._cfg["quantization_strength"] = n
-
-        elif cc == 7:  # swing
-            self._cfg["swing_amount"] = n * 0.5
-
-        elif cc == 8:  # master volume
+        elif cc == 9:  # K2  master volume
             self._synth.master_volume = n
 
-        elif cc == 9:  # FM ratio scale
-            self._synth.set_ratio_scale(0.5 + n * 1.5)
+        elif cc == 12:  # K3  active operator pairs (texture density)
+            pairs = 1 + round(n * 3)
+            self._synth.set_active_pairs(pairs)
+            self._cfg["active_pairs"] = pairs
 
-        elif cc == 10:  # FM mod index scale
+        elif cc == 13:  # K4  envelope decay speed (sustain ↔ staccato)
+            self._synth.set_decay_speed(n)
+            self._cfg["decay_speed"] = n
+
+        elif cc == 14:  # K5  FM modulation index (timbre brightness)
             self._synth.set_mod_index_scale(n * 3.0)
 
-        elif cc == 11:  # aftertouch target
+        elif cc == 15:  # K6  quantization strength
+            self._cfg["quantization_strength"] = n
+
+        # ── Bank B : network ──────────────────────────────────────────────────
+        elif cc == 16:  # K1  network firing threshold
+            self._network.set_threshold(0.3 + n * 1.7)
+
+        elif cc == 17:  # K2  network time constant τ
+            self._network.set_tau(5.0 + n * 95.0)
+
+        elif cc == 18:  # K3  synaptic weight scale
+            self._weight_scale = n * 3.0
+            self._network.set_weight_scale(self._weight_scale)
+
+        elif cc == 19:  # K4  global drive
+            self._network.set_global_drive(n)
+
+        elif cc == 20:  # K5  swing amount
+            self._cfg["swing_amount"] = n * 0.5
+
+        elif cc == 21:  # K6  FM ratio scale
+            self._synth.set_ratio_scale(0.5 + n * 1.5)
+
+        # ── Bank C : extras ───────────────────────────────────────────────────
+        elif cc == 22:  # K1  aftertouch target selector
             idx = round(n * (len(self.AFTERTOUCH_TARGETS) - 1))
             self.aftertouch_target = self.AFTERTOUCH_TARGETS[idx]
+            self._cfg["aftertouch_target"] = self.aftertouch_target
             print(f"[MIDI] Aftertouch target → {self.aftertouch_target}")
 
     # ── Note On handler  (tonality / modality) ────────────────────────────────
@@ -193,3 +213,10 @@ class MIDIHandler:
             self._synth.master_volume = n
         elif t == "mod_index_scale":
             self._synth.set_mod_index_scale(n * 3.0)
+        elif t == "active_pairs":
+            pairs = 1 + round(n * 3)
+            self._synth.set_active_pairs(pairs)
+            self._cfg["active_pairs"] = pairs
+        elif t == "decay_speed":
+            self._synth.set_decay_speed(n)
+            self._cfg["decay_speed"] = n
