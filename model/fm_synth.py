@@ -1,33 +1,117 @@
 """
 FM synthesiser  –  16 voices (presets / columns) × 8 operators each.
 
-Pairing algorithm
+Backend selection
 ─────────────────
-  Pair k :  Op 2k  (carrier)  ←  modulated by  Op 2k+1  (modulator)
-  k ∈ {0, 1, 2, 3}
+  If the Metal/pybind11 native extension (synth_native) has been built,
+  NativeFMSynth wraps it and is used automatically.  Otherwise the pure-Python
+  FMSynth is used as a fallback.
 
-Neuron coupling
-───────────────
-  neuron_env[op, col]  is an amplitude envelope per (operator, voice) cell.
-  On a spike it jumps toward 1.0; between spikes it decays exponentially.
-  Carriers  (even op rows)  use a slower decay  → sustain character.
-  Modulators (odd op rows)  use a faster decay  → transient timbre burst.
+  To build the native backend (macOS only):
+      cd synth_native && pip install -e . && cd ..
 
-Thread safety
-─────────────
-  The audio callback runs in a high-priority OS thread.  All state shared
-  between the callback and the main/MIDI threads is protected by self._lock.
+  After that, main.py will pick it up via make_synth().
 """
 
 import threading
 import numpy as np
 
-from config import SAMPLE_RATE, COLS, ROWS, NUM_OPERATORS
+from config import SAMPLE_RATE, BUFFER_SIZE, COLS, ROWS, NUM_OPERATORS
 from model.presets import PRESETS
 
+# ── try to load the native Metal backend ──────────────────────────────────────
+_native_ok = False
+try:
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from synth_native._fm_synth import FMSynth as _NativeCoreClass
+    _native_ok = True
+except ImportError:
+    _native_ok = False
 
-class FMSynth:
-    # ── construction ──────────────────────────────────────────────────────────
+
+class NativeFMSynth:
+    """
+    Thin Python wrapper around the Metal-backed C++ FMSynth.
+    Presents exactly the same public API as the pure-Python FMSynth below.
+    """
+
+    def __init__(self):
+        self._core = _NativeCoreClass(SAMPLE_RATE, BUFFER_SIZE)
+        self._lock = threading.Lock()   # only for set_all_base_freqs etc.
+
+        # Load all 16 presets
+        for col, preset in enumerate(PRESETS):
+            self._core.load_preset(
+                col,
+                preset["ratios"].astype(np.float32),
+                preset["levels"].astype(np.float32),
+                preset["mod_indices"].astype(np.float32),
+            )
+
+        self._base_freqs = np.full(COLS, 440.0, np.float32)
+
+    # ── frequency control ──────────────────────────────────────────────────
+    def set_all_base_freqs(self, freqs) -> None:
+        arr = np.asarray(freqs, dtype=np.float32)
+        self._base_freqs[:] = arr
+        self._core.set_all_base_freqs(arr)
+
+    def set_base_freq(self, col: int, freq: float) -> None:
+        self._base_freqs[col] = freq
+        self._core.set_base_freq(col, float(freq))
+
+    # ── step control ────────────────────────────────────────────────────────
+    def set_active_step(self, step: int) -> None:
+        self._core.set_active_step(step)
+
+    def trigger_and_activate(self,
+                              accumulated_spikes: np.ndarray,
+                              col: int) -> None:
+        # Convert bool (ROWS, COLS) → float32 (NUM_OPS, COLS)
+        self._core.trigger_and_activate(
+            accumulated_spikes.astype(np.float32), col)
+
+    # ── parameter control ───────────────────────────────────────────────────
+    def set_mod_index_scale(self, scale: float) -> None:
+        self._core.set_mod_index_scale(float(scale))
+
+    def set_active_pairs(self, n: int) -> None:
+        self._core.set_active_pairs(int(n))
+
+    def set_decay_speed(self, speed: float) -> None:
+        self._core.set_decay_speed(float(speed))
+
+    def set_ratio_scale(self, scale: float) -> None:
+        self._core.set_ratio_scale(float(scale))
+
+    @property
+    def master_volume(self) -> float:
+        return self._core.master_volume
+
+    @master_volume.setter
+    def master_volume(self, v: float) -> None:
+        self._core.master_volume = float(v)
+
+    # ── audio generation ────────────────────────────────────────────────────
+    def generate(self, frames: int) -> np.ndarray:
+        return self._core.generate(frames)
+
+    # ── display ─────────────────────────────────────────────────────────────
+    def get_operator_frequencies(self) -> np.ndarray:
+        return self._core.get_operator_frequencies().astype(np.float32)
+
+
+def make_synth() -> "FMSynth | NativeFMSynth":
+    """Return a Metal-backed NativeFMSynth if available, else pure-Python FMSynth."""
+    if _native_ok:
+        print("[FMSynth] Using Metal-accelerated backend.")
+        return NativeFMSynth()
+    print("[FMSynth] Native backend not found – using pure-Python fallback.")
+    return FMSynth()
+
+
+
     def __init__(self):
         self._sr   = SAMPLE_RATE
         self._lock = threading.Lock()

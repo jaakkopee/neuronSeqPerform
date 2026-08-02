@@ -27,7 +27,7 @@ from config import (
     SCALES, SCALE_NAMES, MIDI_PORT_NAME,
 )
 from model.lif_network import LIFNetwork
-from model.fm_synth    import FMSynth
+from model.fm_synth    import make_synth
 from control.midi_handler import MIDIHandler
 from view.matrix_view     import MatrixView
 
@@ -74,7 +74,7 @@ def main() -> None:
 
     # ── model ──────────────────────────────────────────────────────────────────
     network = LIFNetwork()
-    synth   = FMSynth()
+    synth   = make_synth()
 
     # Seed with a musical scale
     synth.set_all_base_freqs(_build_initial_freqs(60, "major"))
