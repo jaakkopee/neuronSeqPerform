@@ -64,10 +64,11 @@ def main() -> None:
         "drive_n":                0.5,
         "swing_amount":           SWING_AMOUNT,
         "ratio_scale":            1.0,
-        # Bank C / status
+        # Bank B / status
         "scale_name":             "major",
         "root_note":              60,
         "aftertouch_target":      "threshold",
+        "lif_steps":              12,
     }
 
     # ── model ──────────────────────────────────────────────────────────────────
@@ -116,9 +117,6 @@ def main() -> None:
     synth.set_active_step(current_step)
     last_step_time = time.monotonic()
 
-    # Number of LIF micro-steps executed per sequencer tick
-    LIF_STEPS_PER_TICK = 12
-
     # ── main loop ──────────────────────────────────────────────────────────────
     running = True
     while running:
@@ -149,7 +147,7 @@ def main() -> None:
 
             # ── LIF micro-steps: accumulate spikes across all sub-steps ───────
             accumulated = np.zeros((ROWS, COLS), bool)
-            for _ in range(LIF_STEPS_PER_TICK):
+            for _ in range(config_state["lif_steps"]):
                 accumulated |= network.step()
 
             # ── hard-gate FM env from accumulated spikes for active column ────

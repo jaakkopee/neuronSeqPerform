@@ -245,8 +245,10 @@ class MatrixView:
         scale     = cfg.get("scale_name", "major")
         at_tgt    = cfg.get("aftertouch_target", "threshold")
         step      = self.current_step + 1
+        lif_steps = cfg.get("lif_steps", 12)
         status    = (f"Step {step:2d}/{COLS}    "
                      f"Scale: {note_name} {scale}    "
+                     f"LIF {lif_steps} steps/tick    "
                      f"CC22: AT \u2192 {at_tgt}")
         surf = self._fn_medium.render(status, True, TEXT_DIM)
         self._screen.blit(surf, (MARGIN_LEFT, y))

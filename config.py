@@ -26,6 +26,11 @@ NEURON_RADIUS = 27
 MIDI_CHANNEL   = 0           # 0-indexed
 MIDI_PORT_NAME = "MPD218"    # substring match – set to "" to use first port
 
+# MPD218 pad note ranges (3 banks × 16 pads = notes 36-83)
+PAD_BANK_A = (36, 51)   # root note selection  (C2-D#3)
+PAD_BANK_B = (52, 67)   # scale / mode         (E3-G4)
+PAD_BANK_C = (68, 83)   # network functions     (G#4-B5)
+
 # ── Scales (semitone offsets from root) ───────────────────────────────────────
 SCALES = {
     "chromatic"   : [0,1,2,3,4,5,6,7,8,9,10,11],

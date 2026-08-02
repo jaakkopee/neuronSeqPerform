@@ -22,10 +22,18 @@ MPD218 knob layout  (all CCs 0-127, channel 0)
   BANK C  ── extras ────────────────────────────────────────────────────────────
   CC 22   K1  aftertouch target selector
 
-Note On
-────────
-  Note  → root pitch (MIDI note number)
-  Vel   → scale / mode selector (0-127 mapped across SCALE_NAMES)
+Note On  (MPD218 pads, channel 9)
+────────────────────────────────
+  Bank A  notes 36-51  → root note  (pitch class of pad, octave 4)
+           velocity    → temporary drive boost
+  Bank B  notes 52-67  → scale / mode  (one pad per scale)
+  Bank C  notes 68-83  → network functions
+           68  randomise weights
+           69  reset potentials
+           70  +4 LIF steps/tick  (denser patterns)
+           71  -4 LIF steps/tick  (sparser patterns)
+           72  randomise drive
+           73  invert weights
 
 Aftertouch / Channel Pressure
 ───────────────────────────────
@@ -33,9 +41,15 @@ Aftertouch / Channel Pressure
 """
 
 import threading
+import numpy as np
 import mido
 
-from config import MIDI_CHANNEL, SCALES, SCALE_NAMES
+from config import MIDI_CHANNEL, SCALES, SCALE_NAMES, PAD_BANK_A, PAD_BANK_B, PAD_BANK_C
+
+_NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+
+def _note_name(midi: int) -> str:
+    return f"{_NOTE_NAMES[midi % 12]}{midi // 12 - 1}"
 
 
 class MIDIHandler:
@@ -181,30 +195,79 @@ class MIDIHandler:
             self._cfg["aftertouch_target"] = self.aftertouch_target
             print(f"[MIDI] Aftertouch target → {self.aftertouch_target}")
 
-    # ── Note On handler  (tonality / modality) ────────────────────────────────
+    # ── Note On handler ───────────────────────────────────────────────────────
     def _on_note_on(self, note: int, velocity: int) -> None:
-        self.root_note = note
-        idx = round((velocity / 127.0) * (len(SCALE_NAMES) - 1))
-        self.scale_idx  = idx
-        self.scale_name = SCALE_NAMES[idx]
-        scale           = SCALES[self.scale_name]
+        lo_a, hi_a = PAD_BANK_A
+        lo_b, hi_b = PAD_BANK_B
+        lo_c, hi_c = PAD_BANK_C
 
-        root_freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        if lo_a <= note <= hi_a:
+            # ── Bank A : root note (pitch class → octave 4) ───────────────────
+            pitch_class    = (note - lo_a) % 12
+            self.root_note = 60 + pitch_class       # C4=60 … B4=71
+            # Velocity: harder hit → stronger drive burst
+            drive_n = 0.4 + (velocity / 127.0) * 0.6
+            self._network.set_global_drive(drive_n)
+            self._cfg["drive_n"] = drive_n
+            self._apply_tonality()
 
-        # Map 16 presets across scale degrees (repeat over octaves as needed)
-        freqs = []
+        elif lo_b <= note <= hi_b:
+            # ── Bank B : scale / mode selection ──────────────────────────────
+            idx = note - lo_b                       # 0-15
+            if idx < len(SCALE_NAMES):
+                self.scale_idx  = idx
+                self.scale_name = SCALE_NAMES[idx]
+            self._apply_tonality()
+
+        elif lo_c <= note <= hi_c:
+            # ── Bank C : network functions ────────────────────────────────────
+            self._network_function(note - lo_c, velocity)
+
+    def _apply_tonality(self) -> None:
+        """Recompute 16 preset frequencies from current root_note + scale_name."""
+        scale     = SCALES[self.scale_name]
+        root_freq = 440.0 * (2.0 ** ((self.root_note - 69) / 12.0))
+        freqs     = []
         for i in range(16):
-            degree  = i % len(scale)
-            octave  = i // len(scale)
+            degree   = i % len(scale)
+            octave   = i // len(scale)
             semitone = scale[degree] + octave * 12
             freqs.append(root_freq * (2.0 ** (semitone / 12.0)))
-
         self._synth.set_all_base_freqs(freqs)
-        # Refresh network display frequencies
         self._network.frequencies = self._synth.get_operator_frequencies()
+        self._cfg["root_note"]  = self.root_note
         self._cfg["scale_name"] = self.scale_name
-        self._cfg["root_note"]  = note
-        print(f"[MIDI] Root={note}  Scale={self.scale_name}")
+        print(f"[MIDI] Root {_note_name(self.root_note)}  Scale {self.scale_name}")
+
+    def _network_function(self, func: int, velocity: int) -> None:
+        """Execute a pad-triggered network function (Bank C, func = note - 68)."""
+        n_neurons = len(self._network.external_drive)
+        vel_n     = velocity / 127.0
+
+        if func == 0:    # randomise weights
+            self._network.randomize_weights()
+            print("[MIDI] Weights randomised")
+        elif func == 1:  # reset potentials
+            self._network.v[:]          = 0.0
+            self._network.refractory[:] = 0.0
+            print("[MIDI] Network potentials reset")
+        elif func == 2:  # +4 LIF steps
+            steps = min(64, self._cfg.get("lif_steps", 12) + 4)
+            self._cfg["lif_steps"] = steps
+            print(f"[MIDI] LIF steps → {steps}")
+        elif func == 3:  # -4 LIF steps
+            steps = max(1, self._cfg.get("lif_steps", 12) - 4)
+            self._cfg["lif_steps"] = steps
+            print(f"[MIDI] LIF steps → {steps}")
+        elif func == 4:  # randomise drive (velocity scales upper bound)
+            hi = 1.0 + vel_n * 1.5
+            self._network.external_drive[:] = np.random.uniform(1.0, hi, n_neurons).astype(np.float32)
+            self._cfg["drive_n"] = (1.0 + hi) / 2.0 / 2.0  # approx mid for display
+            print(f"[MIDI] Drive randomised  hi={hi:.2f}")
+        elif func == 5:  # invert weights
+            self._network.weights *= -1
+            print("[MIDI] Weights inverted")
+        # funcs 6-15 spare
 
     # ── Aftertouch handler ────────────────────────────────────────────────────
     def _on_aftertouch(self, value: int) -> None:
