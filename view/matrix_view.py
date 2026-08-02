@@ -16,6 +16,7 @@ Layout
 """
 
 import math
+import time
 import numpy as np
 import pygame
 
@@ -24,6 +25,8 @@ from config import (
     ROWS, COLS,
     MARGIN_LEFT, MARGIN_TOP,
     CELL_W, CELL_H, NEURON_RADIUS,
+    PAD_BANK_A, PAD_BANK_B, PAD_BANK_C,
+    SCALE_NAMES,
 )
 
 
@@ -94,6 +97,9 @@ class MatrixView:
         # Per-cell spike fade  (decays each draw frame)
         self._fade = np.zeros((ROWS, COLS), np.float32)
 
+        # Per-pad note-on flash  { midi_note: fade_0_to_1 }
+        self._pad_fade: dict = {}
+
         # Surface for the static grid background (rebuilt once)
         self._bg_surf = self._build_bg()
 
@@ -129,11 +135,16 @@ class MatrixView:
         self._draw_row_labels()
         self._draw_title()
         self._draw_info_panel()
+        self._draw_pad_panel()
 
         pygame.display.flip()
 
-        # Decay fade after drawing
+        # Decay fades after drawing
         self._fade *= 0.75
+        for k in list(self._pad_fade):
+            self._pad_fade[k] *= 0.80
+            if self._pad_fade[k] < 0.01:
+                del self._pad_fade[k]
 
     # ── sub-draw routines ───────────────────────────────────────────────────────
     def _draw_step_column(self) -> None:
@@ -298,6 +309,108 @@ class MatrixView:
         fw = max(0, int((w - 6) * norm))
         if fw > 0:
             pygame.draw.rect(self._screen, color, (x + 3, by, fw, 4), border_radius=2)
+
+    # ── pad panel ──────────────────────────────────────────────────────────────
+    # Scale name abbreviations for Bank B cells
+    _SCALE_ABBREV = {
+        "chromatic": "chro", "major": "maj",  "minor": "min",
+        "dorian":    "dor",  "phrygian": "phr", "lydian": "lyd",
+        "mixolydian":"mix",  "locrian": "loc",  "pentatonic": "pent",
+        "blues":     "blu",
+    }
+    # Bank C function labels (index = note - 68)
+    _FUNC_LABELS = ["RndW", "Rst", "+Stp", "-Stp", "RndD", "InvW",
+                    "---",  "---", "---",  "---",  "---",  "---",
+                    "---",  "---", "---",  "---"]
+    _PAD_C      = (200, 110,  45)   # amber  (same as MODULATOR_C)
+    _SCALE_C    = (100, 150, 255)   # blue
+
+    def _draw_pad_panel(self) -> None:
+        cfg    = self.config_state
+        now    = time.monotonic()
+
+        # Absorb timestamps from config_state into our per-frame fade dict
+        flash_ts: dict = cfg.get("noteon_flash", {})
+        for note, ts in list(flash_ts.items()):
+            age = now - ts
+            if age < 0.5:
+                self._pad_fade[note] = max(self._pad_fade.get(note, 0.0),
+                                           1.0 - age / 0.5)
+
+        lo_a, hi_a = PAD_BANK_A
+        lo_b, hi_b = PAD_BANK_B
+        lo_c, hi_c = PAD_BANK_C
+
+        root_pc   = cfg.get("root_note", 60) % 12
+        try:
+            scale_idx = SCALE_NAMES.index(cfg.get("scale_name", "major"))
+        except ValueError:
+            scale_idx = 1
+
+        y = MARGIN_TOP + ROWS * CELL_H + 8 + 148   # just below the param panel
+        cw = CELL_W - 2   # cell width
+
+        # ── Bank A : root note ──────────────────────────────────────────────────
+        self._draw_pad_row_header("PAD BANK A  root note", y, CARRIER_C)
+        y += 13
+        for i in range(16):
+            note = lo_a + i
+            label = _NOTE_NAMES[(note) % 12]       # C, C#, D …
+            selected = ((note - lo_a) % 12 == root_pc)
+            self._draw_pad_cell(MARGIN_LEFT + i * CELL_W, y, cw, 20,
+                                label, selected, self._pad_fade.get(note, 0.0),
+                                CARRIER_C)
+        y += 25
+
+        # ── Bank B : scale / mode ───────────────────────────────────────────────
+        self._draw_pad_row_header("PAD BANK B  scale / mode", y, self._SCALE_C)
+        y += 13
+        for i in range(16):
+            note  = lo_b + i
+            if i < len(SCALE_NAMES):
+                label    = self._SCALE_ABBREV.get(SCALE_NAMES[i], SCALE_NAMES[i][:4])
+                selected = (i == scale_idx)
+            else:
+                label    = "---"
+                selected = False
+            self._draw_pad_cell(MARGIN_LEFT + i * CELL_W, y, cw, 20,
+                                label, selected, self._pad_fade.get(note, 0.0),
+                                self._SCALE_C)
+        y += 25
+
+        # ── Bank C : network functions ──────────────────────────────────────────
+        self._draw_pad_row_header("PAD BANK C  network functions", y, self._PAD_C)
+        y += 13
+        for i in range(16):
+            note  = lo_c + i
+            label = self._FUNC_LABELS[i]
+            self._draw_pad_cell(MARGIN_LEFT + i * CELL_W, y, cw, 20,
+                                label, False, self._pad_fade.get(note, 0.0),
+                                self._PAD_C)
+
+    def _draw_pad_row_header(self, text: str, y: int, color) -> None:
+        surf = self._fn_small.render(text, True, color)
+        self._screen.blit(surf, (MARGIN_LEFT, y))
+        x1 = MARGIN_LEFT + surf.get_width() + 8
+        pygame.draw.line(self._screen, (38, 42, 62),
+                         (x1, y + 5), (SCREEN_WIDTH - MARGIN_LEFT, y + 5))
+
+    def _draw_pad_cell(self, x: int, y: int, w: int, h: int,
+                       label: str, selected: bool, fade: float, color) -> None:
+        # Background
+        if selected:
+            bg = tuple(max(0, int(c * 0.35)) for c in color)
+        else:
+            bg = (15, 17, 28)
+        bg = _lerp_color(bg, (255, 248, 140), fade)
+
+        pygame.draw.rect(self._screen, bg, (x, y, w, h), border_radius=2)
+        border = color if (selected or fade > 0.05) else (32, 36, 55)
+        pygame.draw.rect(self._screen, border, (x, y, w, h), 1, border_radius=2)
+
+        text_c = TEXT_BRIGHT if (selected or fade > 0.1) else TEXT_DIM
+        surf   = self._fn_small.render(label, True, text_c)
+        self._screen.blit(surf, surf.get_rect(center=(x + w // 2, y + h // 2)))
 
     # ── event / tick ───────────────────────────────────────────────────────────
     def handle_events(self) -> bool:

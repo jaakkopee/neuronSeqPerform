@@ -69,6 +69,7 @@ def main() -> None:
         "root_note":              60,
         "aftertouch_target":      "threshold",
         "lif_steps":              12,
+        "noteon_flash":            {},   # note -> monotonic timestamp
     }
 
     # ── model ──────────────────────────────────────────────────────────────────

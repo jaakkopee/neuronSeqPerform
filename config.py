@@ -14,7 +14,7 @@ SWING_AMOUNT            = 0.0     # 0.0 (straight) → 0.5 (full swing)
 
 # ── Display ───────────────────────────────────────────────────────────────────
 SCREEN_WIDTH  = 1280
-SCREEN_HEIGHT = 800
+SCREEN_HEIGHT = 900
 FPS           = 60
 MARGIN_LEFT   = 40
 MARGIN_TOP    = 52

@@ -41,6 +41,7 @@ Aftertouch / Channel Pressure
 """
 
 import threading
+import time
 import numpy as np
 import mido
 
@@ -200,6 +201,9 @@ class MIDIHandler:
         lo_a, hi_a = PAD_BANK_A
         lo_b, hi_b = PAD_BANK_B
         lo_c, hi_c = PAD_BANK_C
+
+        # Record timestamp for flash indicator (view reads this)
+        self._cfg["noteon_flash"][note] = time.monotonic()
 
         if lo_a <= note <= hi_a:
             # ── Bank A : root note (pitch class → octave 4) ───────────────────
