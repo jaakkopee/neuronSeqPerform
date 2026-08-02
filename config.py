@@ -4,7 +4,7 @@ COLS = 16         # presets   / network columns
 
 # ── Audio ─────────────────────────────────────────────────────────────────────
 SAMPLE_RATE   = 44100
-BUFFER_SIZE   = 512
+BUFFER_SIZE   = 1024    # larger buffer = more headroom, less underrun risk
 CHANNELS      = 2
 
 # ── Timing ────────────────────────────────────────────────────────────────────

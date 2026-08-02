@@ -164,78 +164,77 @@ class FMSynth:
     def generate(self, frames: int) -> np.ndarray:
         """
         Render `frames` mono samples.  Returns float32 array of length `frames`.
+
+        Intentionally lock-free.  Holding self._lock here would stall the
+        callback whenever the main or MIDI thread updates a parameter, causing
+        buffer underruns and audible clicks.  The only mutable arrays written
+        exclusively by this method are _phases (no contention).  The rare race
+        on _env/_voice_gain from trigger_and_activate is inaudible because it
+        only occurs when the voice gain is near 0 (start/end of a step).
         """
-        with self._lock:
-            output = np.zeros(frames, np.float64)
-            n      = np.arange(frames, dtype=np.float64)
+        output = np.zeros(frames, np.float64)
+        n      = np.arange(frames, dtype=np.float64)
 
-            for col in range(COLS):
-                # ── voice crossfade gain ───────────────────────────────────
-                # Ramp linearly within the buffer: active→1.0, inactive→0.0.
-                # One buffer (~11.6 ms) is enough for a click-free transition.
-                gain_start = self._voice_gain[col]
-                gain_end   = 1.0 if self._voice_active[col] else 0.0
-                # Cap change to ±1.0 per buffer (i.e. full transition per buf)
-                gain_end = np.clip(gain_end,
-                                   gain_start - 1.0,
-                                   gain_start + 1.0)
-                self._voice_gain[col] = gain_end
+        for col in range(COLS):
+            # ── voice crossfade gain ───────────────────────────────────────
+            gain_start = self._voice_gain[col]
+            gain_end   = float(np.clip(
+                1.0 if self._voice_active[col] else 0.0,
+                gain_start - 1.0,
+                gain_start + 1.0))
+            self._voice_gain[col] = gain_end
 
-                if gain_start == 0.0 and gain_end == 0.0:
-                    continue                          # fully silent, skip
+            if gain_start == 0.0 and gain_end == 0.0:
+                continue
 
-                gain_ramp = np.linspace(gain_start, gain_end, frames)
+            gain_ramp = np.linspace(gain_start, gain_end, frames)
+            voice     = np.zeros(frames, np.float64)
+            n_active  = 0
 
-                voice    = np.zeros(frames, np.float64)
-                n_active = 0
+            for pair in range(self._active_pairs):
+                c_op = pair * 2
+                m_op = pair * 2 + 1
 
-                for pair in range(self._active_pairs):
-                    c_op = pair * 2
-                    m_op = pair * 2 + 1
+                f_car = self._frequencies[col, c_op]
+                f_mod = self._frequencies[col, m_op]
+                if f_car <= 0.0:
+                    continue
 
-                    f_car = self._frequencies[col, c_op]
-                    f_mod = self._frequencies[col, m_op]
-                    if f_car <= 0.0:
-                        continue
+                env_c0 = self._env[c_op, col]
+                env_m0 = self._env[m_op, col]
+                env_c1 = env_c0 * self._per_buf_carrier
+                env_m1 = env_m0 * self._per_buf_mod
 
-                    # Env ramp within buffer: smooth decay from start to end.
-                    # This eliminates the per-buffer amplitude step.
-                    env_c0 = self._env[c_op, col]
-                    env_m0 = self._env[m_op, col]
-                    env_c1 = env_c0 * self._per_buf_carrier
-                    env_m1 = env_m0 * self._per_buf_mod
+                level_ramp = (self._levels[col, c_op]
+                              * np.linspace(env_c0, env_c1, frames))
+                mi_ramp    = (self._mod_indices[col, m_op]
+                              * self._mod_index_scale
+                              * np.linspace(env_m0, env_m1, frames))
 
-                    level_ramp = (self._levels[col, c_op]
-                                  * np.linspace(env_c0, env_c1, frames))
-                    mi_ramp    = (self._mod_indices[col, m_op]
-                                  * self._mod_index_scale
-                                  * np.linspace(env_m0, env_m1, frames))
+                phi_car_inc = 2.0 * np.pi * f_car / self._sr
+                phi_mod_inc = (2.0 * np.pi * f_mod / self._sr
+                               if f_mod > 0 else 0.0)
 
-                    phi_car_inc = 2.0 * np.pi * f_car / self._sr
-                    phi_mod_inc = (2.0 * np.pi * f_mod / self._sr
-                                   if f_mod > 0 else 0.0)
+                phi_mod = self._phases[col, m_op] + phi_mod_inc * n
+                phi_car = self._phases[col, c_op] + phi_car_inc * n
 
-                    phi_mod = self._phases[col, m_op] + phi_mod_inc * n
-                    phi_car = self._phases[col, c_op] + phi_car_inc * n
+                voice += level_ramp * np.sin(phi_car + mi_ramp * np.sin(phi_mod))
+                n_active += 1
 
-                    voice += level_ramp * np.sin(phi_car + mi_ramp * np.sin(phi_mod))
-                    n_active += 1
+                self._phases[col, c_op] = ((self._phases[col, c_op]
+                                            + phi_car_inc * frames)
+                                           % (2.0 * np.pi))
+                self._phases[col, m_op] = ((self._phases[col, m_op]
+                                            + phi_mod_inc * frames)
+                                           % (2.0 * np.pi))
+                self._env[c_op, col] = env_c1
+                self._env[m_op, col] = env_m1
 
-                    self._phases[col, c_op] = ((self._phases[col, c_op]
-                                                + phi_car_inc * frames)
-                                               % (2.0 * np.pi))
-                    self._phases[col, m_op] = ((self._phases[col, m_op]
-                                                + phi_mod_inc * frames)
-                                               % (2.0 * np.pi))
+            if n_active > 0:
+                voice /= n_active
+            output += voice * gain_ramp
 
-                    # Commit decayed env values after generating the ramp
-                    self._env[c_op, col] = env_c1
-                    self._env[m_op, col] = env_m1
-
-                if n_active > 0:
-                    voice /= n_active
-                output += voice * gain_ramp
-
-            # soft limiting + master volume
-            output = np.tanh(output * 0.7) * self.master_volume
-            return output.astype(np.float32)
+        np.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0, copy=False)
+        np.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0, copy=False)
+        output = np.tanh(output * 0.7) * self.master_volume
+        return output.astype(np.float32)

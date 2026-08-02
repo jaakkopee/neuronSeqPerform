@@ -105,7 +105,7 @@ def main() -> None:
             channels   = 2,
             dtype      = "float32",
             callback   = _audio_cb,
-            latency    = "low",
+            latency    = "high",   # more internal buffering = fewer underruns
         )
         stream.start()
         audio_ok = True
