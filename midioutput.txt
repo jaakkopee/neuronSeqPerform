@@ -1,155 +1,626 @@
-MPD218 MIDI scan  –  2026-08-02 06:51:03.353408
+MPD218 MIDI scan  –  2026-08-02 09:08:06.278559
 Port: MPD218 Port A
 ============================================================
 
 === ALL MESSAGES ===
-06:50:30.009  note_on channel=9 note=36 velocity=103 time=0  [C2  65.41 Hz]
-06:50:30.024  note_off channel=9 note=36 velocity=0 time=0
-06:50:30.849  note_on channel=9 note=37 velocity=112 time=0  [C#2  69.30 Hz]
-06:50:30.864  note_off channel=9 note=37 velocity=0 time=0
-06:50:31.941  note_on channel=9 note=38 velocity=111 time=0  [D2  73.42 Hz]
-06:50:31.956  note_off channel=9 note=38 velocity=0 time=0
-06:50:32.741  note_on channel=9 note=39 velocity=106 time=0  [D#2  77.78 Hz]
-06:50:32.756  note_off channel=9 note=39 velocity=0 time=0
-06:50:33.457  note_on channel=9 note=40 velocity=115 time=0  [E2  82.41 Hz]
-06:50:33.473  note_off channel=9 note=40 velocity=0 time=0
-06:50:33.987  note_on channel=9 note=41 velocity=94 time=0  [F2  87.31 Hz]
-06:50:34.003  note_off channel=9 note=41 velocity=0 time=0
-06:50:34.524  note_on channel=9 note=42 velocity=103 time=0  [F#2  92.50 Hz]
-06:50:34.539  note_off channel=9 note=42 velocity=0 time=0
-06:50:35.067  note_on channel=9 note=43 velocity=110 time=0  [G2  98.00 Hz]
-06:50:35.082  note_off channel=9 note=43 velocity=0 time=0
-06:50:35.538  note_on channel=9 note=44 velocity=108 time=0  [G#2  103.83 Hz]
-06:50:35.553  note_off channel=9 note=44 velocity=0 time=0
-06:50:36.026  note_on channel=9 note=45 velocity=107 time=0  [A2  110.00 Hz]
-06:50:36.041  note_off channel=9 note=45 velocity=0 time=0
-06:50:36.527  note_on channel=9 note=46 velocity=113 time=0  [A#2  116.54 Hz]
-06:50:36.542  note_off channel=9 note=46 velocity=0 time=0
-06:50:37.003  note_on channel=9 note=47 velocity=114 time=0  [B2  123.47 Hz]
-06:50:37.019  note_off channel=9 note=47 velocity=0 time=0
-06:50:37.452  note_on channel=9 note=48 velocity=108 time=0  [C3  130.81 Hz]
-06:50:37.468  note_off channel=9 note=48 velocity=0 time=0
-06:50:37.915  note_on channel=9 note=49 velocity=110 time=0  [C#3  138.59 Hz]
-06:50:37.938  note_off channel=9 note=49 velocity=0 time=0
-06:50:38.390  note_on channel=9 note=50 velocity=119 time=0  [D3  146.83 Hz]
-06:50:38.406  note_off channel=9 note=50 velocity=0 time=0
-06:50:38.866  note_on channel=9 note=51 velocity=116 time=0  [D#3  155.56 Hz]
-06:50:38.882  note_off channel=9 note=51 velocity=0 time=0
-06:50:43.433  note_on channel=9 note=64 velocity=100 time=0  [E4  329.63 Hz]
-06:50:43.449  note_off channel=9 note=64 velocity=0 time=0
-06:50:45.275  note_on channel=9 note=52 velocity=100 time=0  [E3  164.81 Hz]
-06:50:45.291  note_off channel=9 note=52 velocity=0 time=0
-06:50:45.648  note_on channel=9 note=53 velocity=113 time=0  [F3  174.61 Hz]
-06:50:45.663  note_off channel=9 note=53 velocity=0 time=0
-06:50:46.007  note_on channel=9 note=54 velocity=122 time=0  [F#3  185.00 Hz]
-06:50:46.022  note_off channel=9 note=54 velocity=0 time=0
-06:50:46.367  note_on channel=9 note=55 velocity=112 time=0  [G3  196.00 Hz]
-06:50:46.383  note_off channel=9 note=55 velocity=0 time=0
-06:50:46.780  note_on channel=9 note=56 velocity=121 time=0  [G#3  207.65 Hz]
-06:50:46.796  note_off channel=9 note=56 velocity=0 time=0
-06:50:47.136  note_on channel=9 note=57 velocity=110 time=0  [A3  220.00 Hz]
-06:50:47.152  note_off channel=9 note=57 velocity=0 time=0
-06:50:47.519  note_on channel=9 note=58 velocity=110 time=0  [A#3  233.08 Hz]
-06:50:47.535  note_off channel=9 note=58 velocity=0 time=0
-06:50:47.906  note_on channel=9 note=59 velocity=120 time=0  [B3  246.94 Hz]
-06:50:47.921  note_off channel=9 note=59 velocity=0 time=0
-06:50:48.314  note_on channel=9 note=60 velocity=117 time=0  [C4  261.63 Hz]
-06:50:48.330  note_off channel=9 note=60 velocity=0 time=0
-06:50:48.686  note_on channel=9 note=61 velocity=114 time=0  [C#4  277.18 Hz]
-06:50:48.701  note_off channel=9 note=61 velocity=0 time=0
-06:50:49.076  note_on channel=9 note=62 velocity=121 time=0  [D4  293.66 Hz]
-06:50:49.091  note_off channel=9 note=62 velocity=0 time=0
-06:50:49.456  note_on channel=9 note=63 velocity=123 time=0  [D#4  311.13 Hz]
-06:50:49.472  note_off channel=9 note=63 velocity=0 time=0
-06:50:49.851  note_on channel=9 note=64 velocity=115 time=0  [E4  329.63 Hz]
-06:50:49.866  note_off channel=9 note=64 velocity=0 time=0
-06:50:50.211  note_on channel=9 note=65 velocity=112 time=0  [F4  349.23 Hz]
-06:50:50.227  note_off channel=9 note=65 velocity=0 time=0
-06:50:50.608  note_on channel=9 note=66 velocity=114 time=0  [F#4  369.99 Hz]
-06:50:50.624  note_off channel=9 note=66 velocity=0 time=0
-06:50:50.978  note_on channel=9 note=67 velocity=119 time=0  [G4  392.00 Hz]
-06:50:50.993  note_off channel=9 note=67 velocity=0 time=0
-06:50:53.439  note_on channel=9 note=68 velocity=77 time=0  [G#4  415.30 Hz]
-06:50:53.454  note_off channel=9 note=68 velocity=0 time=0
-06:50:53.806  note_on channel=9 note=69 velocity=101 time=0  [A4  440.00 Hz]
-06:50:53.822  note_off channel=9 note=69 velocity=0 time=0
-06:50:54.188  note_on channel=9 note=70 velocity=113 time=0  [A#4  466.16 Hz]
-06:50:54.204  note_off channel=9 note=70 velocity=0 time=0
-06:50:54.558  note_on channel=9 note=71 velocity=98 time=0  [B4  493.88 Hz]
-06:50:54.573  note_off channel=9 note=71 velocity=0 time=0
-06:50:54.958  note_on channel=9 note=72 velocity=106 time=0  [C5  523.25 Hz]
-06:50:54.973  note_off channel=9 note=72 velocity=0 time=0
-06:50:55.287  note_on channel=9 note=73 velocity=102 time=0  [C#5  554.37 Hz]
-06:50:55.303  note_off channel=9 note=73 velocity=0 time=0
-06:50:55.663  note_on channel=9 note=74 velocity=110 time=0  [D5  587.33 Hz]
-06:50:55.679  note_off channel=9 note=74 velocity=0 time=0
-06:50:56.074  note_on channel=9 note=75 velocity=105 time=0  [D#5  622.25 Hz]
-06:50:56.089  note_off channel=9 note=75 velocity=0 time=0
-06:50:56.472  note_on channel=9 note=76 velocity=113 time=0  [E5  659.26 Hz]
-06:50:56.487  note_off channel=9 note=76 velocity=0 time=0
-06:50:56.821  note_on channel=9 note=77 velocity=118 time=0  [F5  698.46 Hz]
-06:50:56.836  note_off channel=9 note=77 velocity=0 time=0
-06:50:57.195  note_on channel=9 note=78 velocity=126 time=0  [F#5  739.99 Hz]
-06:50:57.211  note_off channel=9 note=78 velocity=0 time=0
-06:50:57.557  note_on channel=9 note=79 velocity=121 time=0  [G5  783.99 Hz]
-06:50:57.572  note_off channel=9 note=79 velocity=0 time=0
-06:50:57.953  note_on channel=9 note=80 velocity=114 time=0  [G#5  830.61 Hz]
-06:50:57.973  note_off channel=9 note=80 velocity=0 time=0
-06:50:58.314  note_on channel=9 note=81 velocity=111 time=0  [A5  880.00 Hz]
-06:50:58.330  note_off channel=9 note=81 velocity=0 time=0
-06:50:58.699  note_on channel=9 note=82 velocity=118 time=0  [A#5  932.33 Hz]
-06:50:58.715  note_off channel=9 note=82 velocity=0 time=0
-06:50:59.078  note_on channel=9 note=83 velocity=117 time=0  [B5  987.77 Hz]
-06:50:59.094  note_off channel=9 note=83 velocity=0 time=0
+09:06:21.182  note_on channel=9 note=41 velocity=8 time=0  [F2  87.31 Hz]
+09:06:21.268  aftertouch channel=9 value=97 time=0
+09:06:21.288  aftertouch channel=9 value=103 time=0
+09:06:21.308  aftertouch channel=9 value=108 time=0
+09:06:21.328  aftertouch channel=9 value=110 time=0
+09:06:21.348  aftertouch channel=9 value=112 time=0
+09:06:21.368  aftertouch channel=9 value=114 time=0
+09:06:21.389  aftertouch channel=9 value=117 time=0
+09:06:21.409  aftertouch channel=9 value=120 time=0
+09:06:21.429  aftertouch channel=9 value=122 time=0
+09:06:21.449  aftertouch channel=9 value=125 time=0
+09:06:21.470  aftertouch channel=9 value=127 time=0
+09:06:22.662  aftertouch channel=9 value=124 time=0
+09:06:22.682  aftertouch channel=9 value=119 time=0
+09:06:22.702  aftertouch channel=9 value=116 time=0
+09:06:22.722  aftertouch channel=9 value=113 time=0
+09:06:22.742  aftertouch channel=9 value=108 time=0
+09:06:22.762  aftertouch channel=9 value=99 time=0
+09:06:22.783  aftertouch channel=9 value=85 time=0
+09:06:22.803  aftertouch channel=9 value=11 time=0
+09:06:22.823  aftertouch channel=9 value=1 time=0
+09:06:22.855  aftertouch channel=9 value=0 time=0
+09:06:22.855  note_off channel=9 note=41 velocity=0 time=0
+09:06:23.254  note_on channel=9 note=41 velocity=14 time=0  [F2  87.31 Hz]
+09:06:23.328  aftertouch channel=9 value=108 time=0
+09:06:23.348  aftertouch channel=9 value=115 time=0
+09:06:23.368  aftertouch channel=9 value=121 time=0
+09:06:23.388  aftertouch channel=9 value=125 time=0
+09:06:23.408  aftertouch channel=9 value=127 time=0
+09:06:24.924  aftertouch channel=9 value=125 time=0
+09:06:24.944  aftertouch channel=9 value=122 time=0
+09:06:24.964  aftertouch channel=9 value=121 time=0
+09:06:24.984  aftertouch channel=9 value=120 time=0
+09:06:25.004  aftertouch channel=9 value=118 time=0
+09:06:25.024  aftertouch channel=9 value=116 time=0
+09:06:25.045  aftertouch channel=9 value=112 time=0
+09:06:25.065  aftertouch channel=9 value=107 time=0
+09:06:25.085  aftertouch channel=9 value=103 time=0
+09:06:25.105  aftertouch channel=9 value=100 time=0
+09:06:25.146  aftertouch channel=9 value=99 time=0
+09:06:25.166  aftertouch channel=9 value=97 time=0
+09:06:25.186  aftertouch channel=9 value=91 time=0
+09:06:25.206  aftertouch channel=9 value=75 time=0
+09:06:25.227  aftertouch channel=9 value=28 time=0
+09:06:25.247  aftertouch channel=9 value=5 time=0
+09:06:25.267  aftertouch channel=9 value=8 time=0
+09:06:25.287  aftertouch channel=9 value=3 time=0
+09:06:25.307  aftertouch channel=9 value=1 time=0
+09:06:25.334  aftertouch channel=9 value=0 time=0
+09:06:25.334  note_off channel=9 note=41 velocity=0 time=0
+09:06:25.958  note_on channel=9 note=41 velocity=10 time=0  [F2  87.31 Hz]
+09:06:26.035  aftertouch channel=9 value=92 time=0
+09:06:26.055  aftertouch channel=9 value=97 time=0
+09:06:26.075  aftertouch channel=9 value=100 time=0
+09:06:26.095  aftertouch channel=9 value=105 time=0
+09:06:26.115  aftertouch channel=9 value=110 time=0
+09:06:26.135  aftertouch channel=9 value=114 time=0
+09:06:26.156  aftertouch channel=9 value=116 time=0
+09:06:26.176  aftertouch channel=9 value=117 time=0
+09:06:26.196  aftertouch channel=9 value=118 time=0
+09:06:26.216  aftertouch channel=9 value=120 time=0
+09:06:26.237  aftertouch channel=9 value=122 time=0
+09:06:26.257  aftertouch channel=9 value=125 time=0
+09:06:26.277  aftertouch channel=9 value=127 time=0
+09:06:27.327  aftertouch channel=9 value=121 time=0
+09:06:27.348  aftertouch channel=9 value=118 time=0
+09:06:27.368  aftertouch channel=9 value=119 time=0
+09:06:27.408  aftertouch channel=9 value=120 time=0
+09:06:27.449  aftertouch channel=9 value=118 time=0
+09:06:27.469  aftertouch channel=9 value=116 time=0
+09:06:27.489  aftertouch channel=9 value=115 time=0
+09:06:27.509  aftertouch channel=9 value=114 time=0
+09:06:27.529  aftertouch channel=9 value=113 time=0
+09:06:27.550  aftertouch channel=9 value=114 time=0
+09:06:27.590  aftertouch channel=9 value=112 time=0
+09:06:27.610  aftertouch channel=9 value=110 time=0
+09:06:27.630  aftertouch channel=9 value=108 time=0
+09:06:27.651  aftertouch channel=9 value=107 time=0
+09:06:27.671  aftertouch channel=9 value=105 time=0
+09:06:27.691  aftertouch channel=9 value=102 time=0
+09:06:27.711  aftertouch channel=9 value=99 time=0
+09:06:27.731  aftertouch channel=9 value=96 time=0
+09:06:27.752  aftertouch channel=9 value=85 time=0
+09:06:27.772  aftertouch channel=9 value=10 time=0
+09:06:27.792  aftertouch channel=9 value=1 time=0
+09:06:27.796  aftertouch channel=9 value=0 time=0
+09:06:27.796  note_off channel=9 note=41 velocity=0 time=0
+09:06:28.640  note_on channel=9 note=41 velocity=12 time=0  [F2  87.31 Hz]
+09:06:28.721  aftertouch channel=9 value=73 time=0
+09:06:28.741  aftertouch channel=9 value=88 time=0
+09:06:28.761  aftertouch channel=9 value=94 time=0
+09:06:28.781  aftertouch channel=9 value=96 time=0
+09:06:28.801  aftertouch channel=9 value=99 time=0
+09:06:28.821  aftertouch channel=9 value=105 time=0
+09:06:28.842  aftertouch channel=9 value=112 time=0
+09:06:28.862  aftertouch channel=9 value=115 time=0
+09:06:28.882  aftertouch channel=9 value=117 time=0
+09:06:28.902  aftertouch channel=9 value=118 time=0
+09:06:28.923  aftertouch channel=9 value=121 time=0
+09:06:28.943  aftertouch channel=9 value=123 time=0
+09:06:28.963  aftertouch channel=9 value=126 time=0
+09:06:28.983  aftertouch channel=9 value=127 time=0
+09:06:29.549  aftertouch channel=9 value=126 time=0
+09:06:29.569  aftertouch channel=9 value=121 time=0
+09:06:29.589  aftertouch channel=9 value=112 time=0
+09:06:29.615  aftertouch channel=9 value=93 time=0
+09:06:29.629  aftertouch channel=9 value=30 time=0
+09:06:29.649  aftertouch channel=9 value=0 time=0
+09:06:29.649  note_off channel=9 note=41 velocity=0 time=0
+09:06:30.934  note_on channel=9 note=42 velocity=3 time=0  [F#2  92.50 Hz]
+09:06:31.002  aftertouch channel=9 value=72 time=0
+09:06:31.022  aftertouch channel=9 value=80 time=0
+09:06:31.043  aftertouch channel=9 value=86 time=0
+09:06:31.063  aftertouch channel=9 value=89 time=0
+09:06:31.083  aftertouch channel=9 value=91 time=0
+09:06:31.084  note_on channel=9 note=41 velocity=8 time=0  [F2  87.31 Hz]
+09:06:31.103  aftertouch channel=9 value=94 time=0
+09:06:31.123  aftertouch channel=9 value=97 time=0
+09:06:31.144  aftertouch channel=9 value=98 time=0
+09:06:31.164  aftertouch channel=9 value=87 time=0
+09:06:31.184  aftertouch channel=9 value=94 time=0
+09:06:31.204  aftertouch channel=9 value=101 time=0
+09:06:31.204  aftertouch channel=9 value=100 time=0
+09:06:31.224  aftertouch channel=9 value=104 time=0
+09:06:31.225  aftertouch channel=9 value=102 time=0
+09:06:31.245  aftertouch channel=9 value=106 time=0
+09:06:31.245  aftertouch channel=9 value=103 time=0
+09:06:31.265  aftertouch channel=9 value=105 time=0
+09:06:31.285  aftertouch channel=9 value=107 time=0
+09:06:31.286  aftertouch channel=9 value=102 time=0
+09:06:31.306  aftertouch channel=9 value=108 time=0
+09:06:31.306  aftertouch channel=9 value=103 time=0
+09:06:31.326  aftertouch channel=9 value=109 time=0
+09:06:31.326  aftertouch channel=9 value=101 time=0
+09:06:31.346  aftertouch channel=9 value=102 time=0
+09:06:31.367  aftertouch channel=9 value=108 time=0
+09:06:31.367  aftertouch channel=9 value=104 time=0
+09:06:31.387  aftertouch channel=9 value=105 time=0
+09:06:31.407  aftertouch channel=9 value=107 time=0
+09:06:31.427  aftertouch channel=9 value=108 time=0
+09:06:31.427  aftertouch channel=9 value=104 time=0
+09:06:31.448  aftertouch channel=9 value=110 time=0
+09:06:31.448  aftertouch channel=9 value=101 time=0
+09:06:31.468  aftertouch channel=9 value=112 time=0
+09:06:31.509  aftertouch channel=9 value=102 time=0
+09:06:31.549  aftertouch channel=9 value=111 time=0
+09:06:31.549  aftertouch channel=9 value=103 time=0
+09:06:31.569  aftertouch channel=9 value=112 time=0
+09:06:31.569  aftertouch channel=9 value=102 time=0
+09:06:31.590  aftertouch channel=9 value=114 time=0
+09:06:31.590  aftertouch channel=9 value=103 time=0
+09:06:31.630  aftertouch channel=9 value=104 time=0
+09:06:31.691  aftertouch channel=9 value=103 time=0
+09:06:31.711  aftertouch channel=9 value=112 time=0
+09:06:31.711  aftertouch channel=9 value=102 time=0
+09:06:31.731  aftertouch channel=9 value=111 time=0
+09:06:31.751  aftertouch channel=9 value=112 time=0
+09:06:31.752  aftertouch channel=9 value=101 time=0
+09:06:31.772  aftertouch channel=9 value=102 time=0
+09:06:31.812  aftertouch channel=9 value=101 time=0
+09:06:31.832  aftertouch channel=9 value=111 time=0
+09:06:31.853  aftertouch channel=9 value=102 time=0
+09:06:31.873  aftertouch channel=9 value=103 time=0
+09:06:31.893  aftertouch channel=9 value=104 time=0
+09:06:31.914  aftertouch channel=9 value=105 time=0
+09:06:31.934  aftertouch channel=9 value=106 time=0
+09:06:31.975  aftertouch channel=9 value=110 time=0
+09:06:31.995  aftertouch channel=9 value=109 time=0
+09:06:31.995  aftertouch channel=9 value=107 time=0
+09:06:32.015  aftertouch channel=9 value=108 time=0
+09:06:32.035  aftertouch channel=9 value=107 time=0
+09:06:32.056  aftertouch channel=9 value=108 time=0
+09:06:32.096  aftertouch channel=9 value=106 time=0
+09:06:32.096  aftertouch channel=9 value=107 time=0
+09:06:32.116  aftertouch channel=9 value=105 time=0
+09:06:32.117  aftertouch channel=9 value=106 time=0
+09:06:32.137  aftertouch channel=9 value=104 time=0
+09:06:32.157  aftertouch channel=9 value=103 time=0
+09:06:32.157  aftertouch channel=9 value=105 time=0
+09:06:32.177  aftertouch channel=9 value=105 time=0
+09:06:32.177  aftertouch channel=9 value=104 time=0
+09:06:32.197  aftertouch channel=9 value=104 time=0
+09:06:32.198  aftertouch channel=9 value=101 time=0
+09:06:32.218  aftertouch channel=9 value=98 time=0
+09:06:32.238  aftertouch channel=9 value=103 time=0
+09:06:32.238  aftertouch channel=9 value=96 time=0
+09:06:32.258  aftertouch channel=9 value=105 time=0
+09:06:32.259  aftertouch channel=9 value=94 time=0
+09:06:32.279  aftertouch channel=9 value=108 time=0
+09:06:32.279  aftertouch channel=9 value=93 time=0
+09:06:32.299  aftertouch channel=9 value=109 time=0
+09:06:32.299  aftertouch channel=9 value=90 time=0
+09:06:32.319  aftertouch channel=9 value=110 time=0
+09:06:32.320  aftertouch channel=9 value=88 time=0
+09:06:32.340  aftertouch channel=9 value=65 time=0
+09:06:32.360  aftertouch channel=9 value=111 time=0
+09:06:32.360  aftertouch channel=9 value=44 time=0
+09:06:32.380  aftertouch channel=9 value=112 time=0
+09:06:32.380  aftertouch channel=9 value=37 time=0
+09:06:32.401  aftertouch channel=9 value=113 time=0
+09:06:32.401  aftertouch channel=9 value=35 time=0
+09:06:32.421  aftertouch channel=9 value=114 time=0
+09:06:32.421  aftertouch channel=9 value=32 time=0
+09:06:32.441  aftertouch channel=9 value=115 time=0
+09:06:32.441  aftertouch channel=9 value=25 time=0
+09:06:32.461  aftertouch channel=9 value=116 time=0
+09:06:32.462  aftertouch channel=9 value=17 time=0
+09:06:32.482  aftertouch channel=9 value=117 time=0
+09:06:32.482  aftertouch channel=9 value=1 time=0
+09:06:32.502  aftertouch channel=9 value=118 time=0
+09:06:32.522  aftertouch channel=9 value=117 time=0
+09:06:32.543  aftertouch channel=9 value=115 time=0
+09:06:32.547  aftertouch channel=9 value=114 time=0
+09:06:32.547  aftertouch channel=9 value=0 time=0
+09:06:32.547  note_off channel=9 note=42 velocity=0 time=0
+09:06:32.563  aftertouch channel=9 value=115 time=0
+09:06:32.583  aftertouch channel=9 value=118 time=0
+09:06:32.603  aftertouch channel=9 value=120 time=0
+09:06:32.644  aftertouch channel=9 value=119 time=0
+09:06:32.667  note_on channel=9 note=42 velocity=4 time=0  [F#2  92.50 Hz]
+09:06:32.684  aftertouch channel=9 value=118 time=0
+09:06:32.704  aftertouch channel=9 value=114 time=0
+09:06:32.725  aftertouch channel=9 value=111 time=0
+09:06:32.749  aftertouch channel=9 value=108 time=0
+09:06:32.749  aftertouch channel=9 value=100 time=0
+09:06:32.765  aftertouch channel=9 value=106 time=0
+09:06:32.765  aftertouch channel=9 value=102 time=0
+09:06:32.785  aftertouch channel=9 value=105 time=0
+09:06:32.785  aftertouch channel=9 value=103 time=0
+09:06:32.805  aftertouch channel=9 value=108 time=0
+09:06:32.826  aftertouch channel=9 value=102 time=0
+09:06:32.826  aftertouch channel=9 value=111 time=0
+09:06:32.846  aftertouch channel=9 value=97 time=0
+09:06:32.846  aftertouch channel=9 value=113 time=0
+09:06:32.866  aftertouch channel=9 value=94 time=0
+09:06:32.866  aftertouch channel=9 value=114 time=0
+09:06:32.887  aftertouch channel=9 value=91 time=0
+09:06:32.927  aftertouch channel=9 value=93 time=0
+09:06:32.927  aftertouch channel=9 value=115 time=0
+09:06:32.948  aftertouch channel=9 value=94 time=0
+09:06:32.968  aftertouch channel=9 value=116 time=0
+09:06:32.988  aftertouch channel=9 value=117 time=0
+09:06:33.008  aftertouch channel=9 value=93 time=0
+09:06:33.029  aftertouch channel=9 value=95 time=0
+09:06:33.049  aftertouch channel=9 value=97 time=0
+09:06:33.070  aftertouch channel=9 value=118 time=0
+09:06:33.090  aftertouch channel=9 value=96 time=0
+09:06:33.090  aftertouch channel=9 value=121 time=0
+09:06:33.110  aftertouch channel=9 value=95 time=0
+09:06:33.110  aftertouch channel=9 value=122 time=0
+09:06:33.151  aftertouch channel=9 value=93 time=0
+09:06:33.151  aftertouch channel=9 value=123 time=0
+09:06:33.171  aftertouch channel=9 value=92 time=0
+09:06:33.171  aftertouch channel=9 value=124 time=0
+09:06:33.191  aftertouch channel=9 value=86 time=0
+09:06:33.191  aftertouch channel=9 value=126 time=0
+09:06:33.211  aftertouch channel=9 value=78 time=0
+09:06:33.212  aftertouch channel=9 value=127 time=0
+09:06:33.232  aftertouch channel=9 value=65 time=0
+09:06:33.252  aftertouch channel=9 value=43 time=0
+09:06:33.272  aftertouch channel=9 value=18 time=0
+09:06:33.292  aftertouch channel=9 value=11 time=0
+09:06:33.313  aftertouch channel=9 value=1 time=0
+09:06:33.354  aftertouch channel=9 value=0 time=0
+09:06:33.354  note_off channel=9 note=41 velocity=0 time=0
+09:06:33.622  note_on channel=9 note=41 velocity=19 time=0  [F2  87.31 Hz]
+09:06:33.697  aftertouch channel=9 value=87 time=0
+09:06:33.717  aftertouch channel=9 value=96 time=0
+09:06:33.717  aftertouch channel=9 value=125 time=0
+09:06:33.737  aftertouch channel=9 value=101 time=0
+09:06:33.737  aftertouch channel=9 value=124 time=0
+09:06:33.757  aftertouch channel=9 value=102 time=0
+09:06:33.758  aftertouch channel=9 value=123 time=0
+09:06:33.778  aftertouch channel=9 value=101 time=0
+09:06:33.798  aftertouch channel=9 value=124 time=0
+09:06:33.818  aftertouch channel=9 value=102 time=0
+09:06:33.839  aftertouch channel=9 value=108 time=0
+09:06:33.839  aftertouch channel=9 value=123 time=0
+09:06:33.859  aftertouch channel=9 value=111 time=0
+09:06:33.859  aftertouch channel=9 value=121 time=0
+09:06:33.879  aftertouch channel=9 value=114 time=0
+09:06:33.879  aftertouch channel=9 value=116 time=0
+09:06:33.900  aftertouch channel=9 value=116 time=0
+09:06:33.900  aftertouch channel=9 value=112 time=0
+09:06:33.920  aftertouch channel=9 value=120 time=0
+09:06:33.920  aftertouch channel=9 value=108 time=0
+09:06:33.940  aftertouch channel=9 value=124 time=0
+09:06:33.940  aftertouch channel=9 value=106 time=0
+09:06:33.960  aftertouch channel=9 value=127 time=0
+09:06:33.961  aftertouch channel=9 value=105 time=0
+09:06:33.981  aftertouch channel=9 value=103 time=0
+09:06:34.001  aftertouch channel=9 value=100 time=0
+09:06:34.021  aftertouch channel=9 value=96 time=0
+09:06:34.041  aftertouch channel=9 value=92 time=0
+09:06:34.062  aftertouch channel=9 value=90 time=0
+09:06:34.082  aftertouch channel=9 value=89 time=0
+09:06:34.102  aftertouch channel=9 value=90 time=0
+09:06:34.122  aftertouch channel=9 value=126 time=0
+09:06:34.122  aftertouch channel=9 value=94 time=0
+09:06:34.143  aftertouch channel=9 value=125 time=0
+09:06:34.143  aftertouch channel=9 value=98 time=0
+09:06:34.163  aftertouch channel=9 value=123 time=0
+09:06:34.163  aftertouch channel=9 value=107 time=0
+09:06:34.183  aftertouch channel=9 value=119 time=0
+09:06:34.183  aftertouch channel=9 value=114 time=0
+09:06:34.203  aftertouch channel=9 value=114 time=0
+09:06:34.204  aftertouch channel=9 value=120 time=0
+09:06:34.224  aftertouch channel=9 value=107 time=0
+09:06:34.224  aftertouch channel=9 value=123 time=0
+09:06:34.244  aftertouch channel=9 value=100 time=0
+09:06:34.244  aftertouch channel=9 value=127 time=0
+09:06:34.264  aftertouch channel=9 value=88 time=0
+09:06:34.285  aftertouch channel=9 value=56 time=0
+09:06:34.305  aftertouch channel=9 value=37 time=0
+09:06:34.325  aftertouch channel=9 value=18 time=0
+09:06:34.345  aftertouch channel=9 value=3 time=0
+09:06:34.366  aftertouch channel=9 value=1 time=0
+09:06:34.389  aftertouch channel=9 value=0 time=0
+09:06:34.389  note_off channel=9 note=41 velocity=0 time=0
+09:06:34.621  note_on channel=9 note=41 velocity=17 time=0  [F2  87.31 Hz]
+09:06:34.689  aftertouch channel=9 value=38 time=0
+09:06:34.709  aftertouch channel=9 value=46 time=0
+09:06:34.729  aftertouch channel=9 value=79 time=0
+09:06:34.750  aftertouch channel=9 value=90 time=0
+09:06:34.770  aftertouch channel=9 value=98 time=0
+09:06:34.790  aftertouch channel=9 value=102 time=0
+09:06:34.810  aftertouch channel=9 value=108 time=0
+09:06:34.830  aftertouch channel=9 value=112 time=0
+09:06:34.851  aftertouch channel=9 value=114 time=0
+09:06:34.871  aftertouch channel=9 value=115 time=0
+09:06:34.871  aftertouch channel=9 value=125 time=0
+09:06:34.891  aftertouch channel=9 value=123 time=0
+09:06:34.911  aftertouch channel=9 value=116 time=0
+09:06:34.932  aftertouch channel=9 value=117 time=0
+09:06:34.952  aftertouch channel=9 value=115 time=0
+09:06:34.952  aftertouch channel=9 value=125 time=0
+09:06:34.972  aftertouch channel=9 value=112 time=0
+09:06:34.972  aftertouch channel=9 value=127 time=0
+09:06:34.993  aftertouch channel=9 value=103 time=0
+09:06:35.013  aftertouch channel=9 value=90 time=0
+09:06:35.033  aftertouch channel=9 value=39 time=0
+09:06:35.053  aftertouch channel=9 value=17 time=0
+09:06:35.074  aftertouch channel=9 value=1 time=0
+09:06:35.085  aftertouch channel=9 value=0 time=0
+09:06:35.085  note_off channel=9 note=41 velocity=0 time=0
+09:06:35.241  note_on channel=9 note=41 velocity=19 time=0  [F2  87.31 Hz]
+09:06:35.316  aftertouch channel=9 value=115 time=0
+09:06:35.317  aftertouch channel=9 value=123 time=0
+09:06:35.337  aftertouch channel=9 value=120 time=0
+09:06:35.337  aftertouch channel=9 value=119 time=0
+09:06:35.357  aftertouch channel=9 value=126 time=0
+09:06:35.357  aftertouch channel=9 value=115 time=0
+09:06:35.377  aftertouch channel=9 value=127 time=0
+09:06:35.377  aftertouch channel=9 value=112 time=0
+09:06:35.397  aftertouch channel=9 value=110 time=0
+09:06:35.418  aftertouch channel=9 value=105 time=0
+09:06:35.438  aftertouch channel=9 value=99 time=0
+09:06:35.458  aftertouch channel=9 value=94 time=0
+09:06:35.478  aftertouch channel=9 value=88 time=0
+09:06:35.499  aftertouch channel=9 value=85 time=0
+09:06:35.519  aftertouch channel=9 value=86 time=0
+09:06:35.539  aftertouch channel=9 value=85 time=0
+09:06:35.579  aftertouch channel=9 value=81 time=0
+09:06:35.600  aftertouch channel=9 value=61 time=0
+09:06:35.620  aftertouch channel=9 value=52 time=0
+09:06:35.640  aftertouch channel=9 value=49 time=0
+09:06:35.661  aftertouch channel=9 value=47 time=0
+09:06:35.681  aftertouch channel=9 value=49 time=0
+09:06:35.701  aftertouch channel=9 value=56 time=0
+09:06:35.722  aftertouch channel=9 value=83 time=0
+09:06:35.742  aftertouch channel=9 value=98 time=0
+09:06:35.762  aftertouch channel=9 value=116 time=0
+09:06:35.762  aftertouch channel=9 value=110 time=0
+09:06:35.782  aftertouch channel=9 value=109 time=0
+09:06:35.783  aftertouch channel=9 value=120 time=0
+09:06:35.803  aftertouch channel=9 value=106 time=0
+09:06:35.803  aftertouch channel=9 value=126 time=0
+09:06:35.823  aftertouch channel=9 value=101 time=0
+09:06:35.823  aftertouch channel=9 value=127 time=0
+09:06:35.843  aftertouch channel=9 value=91 time=0
+09:06:35.863  aftertouch channel=9 value=79 time=0
+09:06:35.884  aftertouch channel=9 value=31 time=0
+09:06:35.904  aftertouch channel=9 value=1 time=0
+09:06:35.924  aftertouch channel=9 value=0 time=0
+09:06:35.925  note_off channel=9 note=41 velocity=0 time=0
+09:06:36.166  aftertouch channel=9 value=122 time=0
+09:06:36.172  note_on channel=9 note=41 velocity=31 time=0  [F2  87.31 Hz]
+09:06:36.186  aftertouch channel=9 value=115 time=0
+09:06:36.207  aftertouch channel=9 value=103 time=0
+09:06:36.227  aftertouch channel=9 value=90 time=0
+09:06:36.247  aftertouch channel=9 value=120 time=0
+09:06:36.247  aftertouch channel=9 value=49 time=0
+09:06:36.267  aftertouch channel=9 value=124 time=0
+09:06:36.268  aftertouch channel=9 value=1 time=0
+09:06:36.288  aftertouch channel=9 value=125 time=0
+09:06:36.308  aftertouch channel=9 value=123 time=0
+09:06:36.320  aftertouch channel=9 value=121 time=0
+09:06:36.320  aftertouch channel=9 value=0 time=0
+09:06:36.320  note_off channel=9 note=42 velocity=0 time=0
+09:06:36.328  aftertouch channel=9 value=120 time=0
+09:06:36.348  aftertouch channel=9 value=116 time=0
+09:06:36.369  aftertouch channel=9 value=110 time=0
+09:06:36.395  note_on channel=9 note=42 velocity=2 time=0  [F#2  92.50 Hz]
+09:06:36.409  aftertouch channel=9 value=112 time=0
+09:06:36.429  aftertouch channel=9 value=113 time=0
+09:06:36.449  aftertouch channel=9 value=111 time=0
+09:06:36.470  aftertouch channel=9 value=104 time=0
+09:06:36.470  aftertouch channel=9 value=108 time=0
+09:06:36.490  aftertouch channel=9 value=95 time=0
+09:06:36.490  aftertouch channel=9 value=115 time=0
+09:06:36.510  aftertouch channel=9 value=55 time=0
+09:06:36.510  aftertouch channel=9 value=116 time=0
+09:06:36.531  aftertouch channel=9 value=1 time=0
+09:06:36.531  aftertouch channel=9 value=117 time=0
+09:06:36.551  aftertouch channel=9 value=118 time=0
+09:06:36.571  aftertouch channel=9 value=120 time=0
+09:06:36.591  aftertouch channel=9 value=123 time=0
+09:06:36.612  aftertouch channel=9 value=125 time=0
+09:06:36.632  aftertouch channel=9 value=127 time=0
+09:06:36.648  aftertouch channel=9 value=0 time=0
+09:06:36.648  note_off channel=9 note=41 velocity=0 time=0
+09:06:36.672  aftertouch channel=9 value=125 time=0
+09:06:36.693  aftertouch channel=9 value=124 time=0
+09:06:36.713  aftertouch channel=9 value=122 time=0
+09:06:36.713  note_on channel=9 note=41 velocity=20 time=0  [F2  87.31 Hz]
+09:06:36.733  aftertouch channel=9 value=115 time=0
+09:06:36.753  aftertouch channel=9 value=107 time=0
+09:06:36.774  aftertouch channel=9 value=98 time=0
+09:06:36.794  aftertouch channel=9 value=101 time=0
+09:06:36.794  aftertouch channel=9 value=88 time=0
+09:06:36.814  aftertouch channel=9 value=111 time=0
+09:06:36.814  aftertouch channel=9 value=45 time=0
+09:06:36.834  aftertouch channel=9 value=120 time=0
+09:06:36.834  aftertouch channel=9 value=8 time=0
+09:06:36.854  aftertouch channel=9 value=125 time=0
+09:06:36.855  aftertouch channel=9 value=1 time=0
+09:06:36.859  aftertouch channel=9 value=0 time=0
+09:06:36.859  note_off channel=9 note=42 velocity=0 time=0
+09:06:36.875  aftertouch channel=9 value=124 time=0
+09:06:36.895  aftertouch channel=9 value=123 time=0
+09:06:36.935  aftertouch channel=9 value=124 time=0
+09:06:36.956  aftertouch channel=9 value=125 time=0
+09:06:36.976  aftertouch channel=9 value=124 time=0
+09:06:36.996  aftertouch channel=9 value=123 time=0
+09:06:37.016  aftertouch channel=9 value=119 time=0
+09:06:37.035  note_on channel=9 note=42 velocity=27 time=0  [F#2  92.50 Hz]
+09:06:37.036  aftertouch channel=9 value=116 time=0
+09:06:37.056  aftertouch channel=9 value=112 time=0
+09:06:37.117  aftertouch channel=9 value=109 time=0
+09:06:37.118  aftertouch channel=9 value=106 time=0
+09:06:37.137  aftertouch channel=9 value=105 time=0
+09:06:37.137  aftertouch channel=9 value=111 time=0
+09:06:37.165  aftertouch channel=9 value=100 time=0
+09:06:37.165  aftertouch channel=9 value=115 time=0
+09:06:37.178  aftertouch channel=9 value=88 time=0
+09:06:37.178  aftertouch channel=9 value=117 time=0
+09:06:37.198  aftertouch channel=9 value=36 time=0
+09:06:37.198  aftertouch channel=9 value=122 time=0
+09:06:37.219  aftertouch channel=9 value=1 time=0
+09:06:37.219  aftertouch channel=9 value=126 time=0
+09:06:37.234  aftertouch channel=9 value=0 time=0
+09:06:37.234  aftertouch channel=9 value=127 time=0
+09:06:37.234  note_off channel=9 note=41 velocity=0 time=0
+09:06:37.380  aftertouch channel=9 value=125 time=0
+09:06:37.401  aftertouch channel=9 value=121 time=0
+09:06:37.421  aftertouch channel=9 value=120 time=0
+09:06:37.441  aftertouch channel=9 value=121 time=0
+09:06:37.461  aftertouch channel=9 value=119 time=0
+09:06:37.481  aftertouch channel=9 value=117 time=0
+09:06:37.502  aftertouch channel=9 value=113 time=0
+09:06:37.522  aftertouch channel=9 value=105 time=0
+09:06:37.542  aftertouch channel=9 value=94 time=0
+09:06:37.562  aftertouch channel=9 value=65 time=0
+09:06:37.580  note_on channel=9 note=41 velocity=21 time=0  [F2  87.31 Hz]
+09:06:37.582  aftertouch channel=9 value=1 time=0
+09:06:37.591  aftertouch channel=9 value=0 time=0
+09:06:37.591  note_off channel=9 note=42 velocity=0 time=0
+09:06:37.663  aftertouch channel=9 value=113 time=0
+09:06:37.683  aftertouch channel=9 value=116 time=0
+09:06:37.724  aftertouch channel=9 value=113 time=0
+09:06:37.744  aftertouch channel=9 value=111 time=0
+09:06:37.764  aftertouch channel=9 value=106 time=0
+09:06:37.784  aftertouch channel=9 value=103 time=0
+09:06:37.799  note_on channel=9 note=42 velocity=21 time=0  [F#2  92.50 Hz]
+09:06:37.804  aftertouch channel=9 value=98 time=0
+09:06:37.825  aftertouch channel=9 value=90 time=0
+09:06:37.845  aftertouch channel=9 value=66 time=0
+09:06:37.865  aftertouch channel=9 value=17 time=0
+09:06:37.885  aftertouch channel=9 value=1 time=0
+09:06:37.885  aftertouch channel=9 value=120 time=0
+09:06:37.888  aftertouch channel=9 value=0 time=0
+09:06:37.888  aftertouch channel=9 value=121 time=0
+09:06:37.888  note_off channel=9 note=41 velocity=0 time=0
+09:06:37.906  aftertouch channel=9 value=122 time=0
+09:06:37.946  aftertouch channel=9 value=123 time=0
+09:06:38.007  aftertouch channel=9 value=124 time=0
+09:06:38.027  aftertouch channel=9 value=123 time=0
+09:06:38.067  aftertouch channel=9 value=122 time=0
+09:06:38.087  aftertouch channel=9 value=120 time=0
+09:06:38.108  aftertouch channel=9 value=115 time=0
+09:06:38.128  aftertouch channel=9 value=110 time=0
+09:06:38.148  aftertouch channel=9 value=103 time=0
+09:06:38.162  note_on channel=9 note=41 velocity=16 time=0  [F2  87.31 Hz]
+09:06:38.168  aftertouch channel=9 value=97 time=0
+09:06:38.188  aftertouch channel=9 value=88 time=0
+09:06:38.208  aftertouch channel=9 value=60 time=0
+09:06:38.229  aftertouch channel=9 value=18 time=0
+09:06:38.249  aftertouch channel=9 value=115 time=0
+09:06:38.249  aftertouch channel=9 value=1 time=0
+09:06:38.269  aftertouch channel=9 value=118 time=0
+09:06:38.270  aftertouch channel=9 value=0 time=0
+09:06:38.270  note_off channel=9 note=42 velocity=0 time=0
+09:06:38.290  aftertouch channel=9 value=115 time=0
+09:06:38.310  aftertouch channel=9 value=114 time=0
+09:06:38.330  aftertouch channel=9 value=115 time=0
+09:06:38.370  aftertouch channel=9 value=114 time=0
+09:06:38.391  aftertouch channel=9 value=111 time=0
+09:06:38.411  aftertouch channel=9 value=108 time=0
+09:06:38.422  note_on channel=9 note=42 velocity=11 time=0  [F#2  92.50 Hz]
+09:06:38.431  aftertouch channel=9 value=103 time=0
+09:06:38.451  aftertouch channel=9 value=95 time=0
+09:06:38.471  aftertouch channel=9 value=54 time=0
+09:06:38.492  aftertouch channel=9 value=1 time=0
+09:06:38.492  aftertouch channel=9 value=104 time=0
+09:06:38.499  aftertouch channel=9 value=0 time=0
+09:06:38.499  aftertouch channel=9 value=106 time=0
+09:06:38.499  note_off channel=9 note=41 velocity=0 time=0
+09:06:38.512  aftertouch channel=9 value=109 time=0
+09:06:38.532  aftertouch channel=9 value=115 time=0
+09:06:38.552  aftertouch channel=9 value=120 time=0
+09:06:38.572  aftertouch channel=9 value=123 time=0
+09:06:38.593  aftertouch channel=9 value=125 time=0
+09:06:38.653  aftertouch channel=9 value=122 time=0
+09:06:38.694  aftertouch channel=9 value=121 time=0
+09:06:38.754  aftertouch channel=9 value=120 time=0
+09:06:38.774  aftertouch channel=9 value=121 time=0
+09:06:38.855  aftertouch channel=9 value=122 time=0
+09:06:38.875  aftertouch channel=9 value=123 time=0
+09:06:38.896  aftertouch channel=9 value=122 time=0
+09:06:38.916  aftertouch channel=9 value=121 time=0
+09:06:38.936  aftertouch channel=9 value=119 time=0
+09:06:38.956  aftertouch channel=9 value=113 time=0
+09:06:38.962  note_on channel=9 note=41 velocity=16 time=0  [F2  87.31 Hz]
+09:06:38.976  aftertouch channel=9 value=109 time=0
+09:06:38.997  aftertouch channel=9 value=102 time=0
+09:06:39.017  aftertouch channel=9 value=93 time=0
+09:06:39.037  aftertouch channel=9 value=105 time=0
+09:06:39.037  aftertouch channel=9 value=67 time=0
+09:06:39.057  aftertouch channel=9 value=108 time=0
+09:06:39.057  aftertouch channel=9 value=30 time=0
+09:06:39.078  aftertouch channel=9 value=112 time=0
+09:06:39.078  aftertouch channel=9 value=1 time=0
+09:06:39.098  aftertouch channel=9 value=114 time=0
+09:06:39.118  aftertouch channel=9 value=111 time=0
+09:06:39.138  aftertouch channel=9 value=107 time=0
+09:06:39.159  aftertouch channel=9 value=101 time=0
+09:06:39.159  aftertouch channel=9 value=16 time=0
+09:06:39.179  aftertouch channel=9 value=96 time=0
+09:06:39.179  aftertouch channel=9 value=58 time=0
+09:06:39.199  aftertouch channel=9 value=88 time=0
+09:06:39.199  aftertouch channel=9 value=94 time=0
+09:06:39.219  aftertouch channel=9 value=35 time=0
+09:06:39.220  aftertouch channel=9 value=106 time=0
+09:06:39.236  aftertouch channel=9 value=0 time=0
+09:06:39.236  aftertouch channel=9 value=113 time=0
+09:06:39.236  note_off channel=9 note=41 velocity=0 time=0
+09:06:39.240  aftertouch channel=9 value=115 time=0
+09:06:39.260  aftertouch channel=9 value=119 time=0
+09:06:39.280  aftertouch channel=9 value=123 time=0
+09:06:39.300  aftertouch channel=9 value=126 time=0
+09:06:39.321  aftertouch channel=9 value=127 time=0
+09:06:39.563  aftertouch channel=9 value=126 time=0
+09:06:39.583  aftertouch channel=9 value=124 time=0
+09:06:39.604  aftertouch channel=9 value=123 time=0
+09:06:39.624  aftertouch channel=9 value=121 time=0
+09:06:39.684  aftertouch channel=9 value=117 time=0
+09:06:39.696  note_on channel=9 note=41 velocity=29 time=0  [F2  87.31 Hz]
+09:06:39.704  aftertouch channel=9 value=108 time=0
+09:06:39.725  aftertouch channel=9 value=87 time=0
+09:06:39.745  aftertouch channel=9 value=21 time=0
+09:06:39.765  aftertouch channel=9 value=103 time=0
+09:06:39.765  aftertouch channel=9 value=1 time=0
+09:06:39.785  aftertouch channel=9 value=108 time=0
+09:06:39.806  aftertouch channel=9 value=112 time=0
+09:06:39.806  aftertouch channel=9 value=2 time=0
+09:06:39.826  aftertouch channel=9 value=117 time=0
+09:06:39.826  aftertouch channel=9 value=1 time=0
+09:06:39.846  aftertouch channel=9 value=118 time=0
+09:06:39.887  aftertouch channel=9 value=114 time=0
+09:06:39.907  aftertouch channel=9 value=110 time=0
+09:06:39.907  aftertouch channel=9 value=6 time=0
+09:06:39.927  aftertouch channel=9 value=104 time=0
+09:06:39.927  aftertouch channel=9 value=58 time=0
+09:06:39.948  aftertouch channel=9 value=83 time=0
+09:06:39.948  aftertouch channel=9 value=96 time=0
+09:06:39.968  aftertouch channel=9 value=17 time=0
+09:06:39.968  aftertouch channel=9 value=107 time=0
+09:06:39.988  aftertouch channel=9 value=1 time=0
+09:06:39.988  aftertouch channel=9 value=116 time=0
+09:06:39.996  aftertouch channel=9 value=0 time=0
+09:06:39.996  aftertouch channel=9 value=120 time=0
+09:06:39.996  note_off channel=9 note=41 velocity=0 time=0
+09:06:40.008  aftertouch channel=9 value=123 time=0
+09:06:40.029  aftertouch channel=9 value=126 time=0
+09:06:40.049  aftertouch channel=9 value=127 time=0
+09:06:40.190  aftertouch channel=9 value=126 time=0
+09:06:40.210  aftertouch channel=9 value=125 time=0
+09:06:40.231  aftertouch channel=9 value=123 time=0
+09:06:40.251  aftertouch channel=9 value=118 time=0
+09:06:40.271  aftertouch channel=9 value=112 time=0
+09:06:40.291  aftertouch channel=9 value=99 time=0
+09:06:40.311  aftertouch channel=9 value=87 time=0
+09:06:40.332  aftertouch channel=9 value=36 time=0
+09:06:40.350  aftertouch channel=9 value=0 time=0
+09:06:40.350  note_off channel=9 note=42 velocity=0 time=0
 
 === CC SUMMARY (cc: min..max) ===
 
 === NOTE ON SUMMARY (note: name  freq  vel range) ===
-  Note  36  C2       65.41 Hz  vel 103 – 103  (1 hits)
-  Note  37  C#2      69.30 Hz  vel 112 – 112  (1 hits)
-  Note  38  D2       73.42 Hz  vel 111 – 111  (1 hits)
-  Note  39  D#2      77.78 Hz  vel 106 – 106  (1 hits)
-  Note  40  E2       82.41 Hz  vel 115 – 115  (1 hits)
-  Note  41  F2       87.31 Hz  vel  94 –  94  (1 hits)
-  Note  42  F#2      92.50 Hz  vel 103 – 103  (1 hits)
-  Note  43  G2       98.00 Hz  vel 110 – 110  (1 hits)
-  Note  44  G#2     103.83 Hz  vel 108 – 108  (1 hits)
-  Note  45  A2      110.00 Hz  vel 107 – 107  (1 hits)
-  Note  46  A#2     116.54 Hz  vel 113 – 113  (1 hits)
-  Note  47  B2      123.47 Hz  vel 114 – 114  (1 hits)
-  Note  48  C3      130.81 Hz  vel 108 – 108  (1 hits)
-  Note  49  C#3     138.59 Hz  vel 110 – 110  (1 hits)
-  Note  50  D3      146.83 Hz  vel 119 – 119  (1 hits)
-  Note  51  D#3     155.56 Hz  vel 116 – 116  (1 hits)
-  Note  52  E3      164.81 Hz  vel 100 – 100  (1 hits)
-  Note  53  F3      174.61 Hz  vel 113 – 113  (1 hits)
-  Note  54  F#3     185.00 Hz  vel 122 – 122  (1 hits)
-  Note  55  G3      196.00 Hz  vel 112 – 112  (1 hits)
-  Note  56  G#3     207.65 Hz  vel 121 – 121  (1 hits)
-  Note  57  A3      220.00 Hz  vel 110 – 110  (1 hits)
-  Note  58  A#3     233.08 Hz  vel 110 – 110  (1 hits)
-  Note  59  B3      246.94 Hz  vel 120 – 120  (1 hits)
-  Note  60  C4      261.63 Hz  vel 117 – 117  (1 hits)
-  Note  61  C#4     277.18 Hz  vel 114 – 114  (1 hits)
-  Note  62  D4      293.66 Hz  vel 121 – 121  (1 hits)
-  Note  63  D#4     311.13 Hz  vel 123 – 123  (1 hits)
-  Note  64  E4      329.63 Hz  vel 100 – 115  (2 hits)
-  Note  65  F4      349.23 Hz  vel 112 – 112  (1 hits)
-  Note  66  F#4     369.99 Hz  vel 114 – 114  (1 hits)
-  Note  67  G4      392.00 Hz  vel 119 – 119  (1 hits)
-  Note  68  G#4     415.30 Hz  vel  77 –  77  (1 hits)
-  Note  69  A4      440.00 Hz  vel 101 – 101  (1 hits)
-  Note  70  A#4     466.16 Hz  vel 113 – 113  (1 hits)
-  Note  71  B4      493.88 Hz  vel  98 –  98  (1 hits)
-  Note  72  C5      523.25 Hz  vel 106 – 106  (1 hits)
-  Note  73  C#5     554.37 Hz  vel 102 – 102  (1 hits)
-  Note  74  D5      587.33 Hz  vel 110 – 110  (1 hits)
-  Note  75  D#5     622.25 Hz  vel 105 – 105  (1 hits)
-  Note  76  E5      659.26 Hz  vel 113 – 113  (1 hits)
-  Note  77  F5      698.46 Hz  vel 118 – 118  (1 hits)
-  Note  78  F#5     739.99 Hz  vel 126 – 126  (1 hits)
-  Note  79  G5      783.99 Hz  vel 121 – 121  (1 hits)
-  Note  80  G#5     830.61 Hz  vel 114 – 114  (1 hits)
-  Note  81  A5      880.00 Hz  vel 111 – 111  (1 hits)
-  Note  82  A#5     932.33 Hz  vel 118 – 118  (1 hits)
-  Note  83  B5      987.77 Hz  vel 117 – 117  (1 hits)
+  Note  41  F2       87.31 Hz  vel   8 –  31  (11 hits)
+  Note  42  F#2      92.50 Hz  vel   2 –  27  (6 hits)

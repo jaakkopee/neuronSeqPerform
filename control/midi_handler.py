@@ -126,8 +126,7 @@ class MIDIHandler:
             self._on_cc(msg.control, msg.value)
         elif msg.type == "note_on" and msg.velocity > 0 and msg.channel == MIDI_NOTE_CHANNEL:
             self._on_note_on(msg.note, msg.velocity)
-        elif msg.type in ("aftertouch", "polytouch") and msg.channel == MIDI_CHANNEL:
-            self._on_aftertouch(msg.value)
+        elif msg.type in ("aftertouch", "polytouch") and msg.channel in (MIDI_CHANNEL, MIDI_NOTE_CHANNEL): self._on_aftertouch(msg.value)
 
     # ── CC handler ────────────────────────────────────────────────────────────
     def _on_cc(self, cc: int, value: int) -> None:
