@@ -2,60 +2,88 @@
 Build the Metal-accelerated FM synthesiser extension.
 
 Usage (from the repo root, with the venv active):
-    pip install pybind11
-    pip install -e synth_native/
-
-Or to build in-place and run immediately:
+    pip install pybind11 setuptools
     cd synth_native && python setup.py build_ext --inplace && cd ..
 
-The extension is named synth_native._fm_synth.
-After building, model/fm_synth.py will automatically pick it up.
+setuptools does not recognise .mm files, so we compile the Objective-C++ source
+ourselves with clang and then let setuptools link the final .so.
 """
 
-from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
-import pybind11
+import os
 import subprocess
 import sys
-import os
+import sysconfig
+import tempfile
+
+import pybind11
+from setuptools import Extension, setup
+from setuptools.command.build_ext import build_ext
 
 
 class ObjCppBuildExt(build_ext):
     """
-    Custom build_ext that compiles .mm sources as Objective-C++.
-    clang on macOS recognises the .mm extension natively, but setuptools
-    may not pass the right flags.  We override compile to ensure it does.
+    Custom builder that compiles every .mm source file with clang and adds the
+    resulting object file to the sources before the normal link step.
     """
 
     def build_extension(self, ext):
-        # Patch the compiler so .mm files are treated as Objective-C++
-        orig_compile = self.compiler._compile
+        obj_files = []
 
-        def patched_compile(obj, src, ext_suffix, cc_args, extra_postargs, pp_opts):
+        new_sources = []
+        for src in ext.sources:
             if src.endswith(".mm"):
-                extra_postargs = list(extra_postargs) + ["-x", "objective-c++"]
-            orig_compile(obj, src, ext_suffix, cc_args, extra_postargs, pp_opts)
+                obj = self._compile_mm(src, ext)
+                obj_files.append(obj)
+            else:
+                new_sources.append(src)
 
-        self.compiler._compile = patched_compile
+        ext.sources = new_sources
+        ext.extra_objects = list(getattr(ext, "extra_objects", [])) + obj_files
         super().build_extension(ext)
+
+    def _compile_mm(self, src: str, ext: Extension) -> str:
+        """Compile a .mm file with clang and return the path to the .o file."""
+        build_temp = self.build_temp
+        os.makedirs(build_temp, exist_ok=True)
+
+        base   = os.path.splitext(os.path.basename(src))[0]
+        obj    = os.path.join(build_temp, base + ".o")
+        py_inc = sysconfig.get_path("include")
+
+        cmd = [
+            "clang++",
+            "-x", "objective-c++",
+            "-std=c++17",
+            "-fobjc-arc",
+            "-O2",
+            "-fPIC",
+            # Python headers
+            f"-I{py_inc}",
+            # pybind11 headers
+            f"-I{pybind11.get_include()}",
+        ]
+        # Extension include dirs
+        for inc in (ext.include_dirs or []):
+            cmd.append(f"-I{inc}")
+
+        cmd += ["-c", src, "-o", obj]
+
+        print(" ".join(cmd))
+        subprocess.run(cmd, check=True)
+        return obj
 
 
 ext = Extension(
     "synth_native._fm_synth",
     sources=[
-        "FMSynthMetal.mm",
+        "FMSynthMetal.mm",   # compiled to .o by ObjCppBuildExt above
         "bindings.cpp",
     ],
     include_dirs=[
         pybind11.get_include(),
-        ".",  # for FMSynth.h
+        ".",
     ],
-    extra_compile_args=[
-        "-std=c++17",
-        "-fobjc-arc",       # automatic reference counting for Metal objects
-        "-O2",
-        "-Wall",
-    ],
+    extra_compile_args=["-std=c++17", "-O2"],
     extra_link_args=[
         "-framework", "Metal",
         "-framework", "Foundation",
@@ -66,8 +94,8 @@ ext = Extension(
 setup(
     name="synth_native",
     version="0.1.0",
-    description="Metal-accelerated FM synthesiser for neuronSeqPerform",
     ext_modules=[ext],
     cmdclass={"build_ext": ObjCppBuildExt},
     python_requires=">=3.9",
 )
+

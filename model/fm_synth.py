@@ -105,9 +105,14 @@ class NativeFMSynth:
 def make_synth() -> "FMSynth | NativeFMSynth":
     """Return a Metal-backed NativeFMSynth if available, else pure-Python FMSynth."""
     if _native_ok:
-        print("[FMSynth] Using Metal-accelerated backend.")
-        return NativeFMSynth()
-    print("[FMSynth] Native backend not found – using pure-Python fallback.")
+        try:
+            s = NativeFMSynth()
+            print("[FMSynth] Using Metal-accelerated backend.")
+            return s
+        except Exception as e:
+            print(f"[FMSynth] Metal init failed ({e}), falling back to Python backend.")
+    else:
+        print("[FMSynth] Native backend not built – using pure-Python fallback.")
     return FMSynth()
 
 
