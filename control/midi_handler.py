@@ -45,7 +45,7 @@ import time
 import numpy as np
 import mido
 
-from config import MIDI_CHANNEL, SCALES, SCALE_NAMES, PAD_BANK_A, PAD_BANK_B, PAD_BANK_C
+from config import MIDI_CHANNEL, MIDI_NOTE_CHANNEL, SCALES, SCALE_NAMES, PAD_BANK_A, PAD_BANK_B, PAD_BANK_C
 
 _NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
 
@@ -120,14 +120,14 @@ class MIDIHandler:
                 self._dispatch(msg)
 
     def _dispatch(self, msg) -> None:
-        ch = MIDI_CHANNEL
-        if msg.type == "control_change" and msg.channel == ch:
+        # CCs and aftertouch come from the knob channel (0)
+        # Pad note-ons come from the drum channel (9) on the MPD218
+        if msg.type == "control_change" and msg.channel == MIDI_CHANNEL:
             self._on_cc(msg.control, msg.value)
-        elif msg.type == "note_on" and msg.velocity > 0 and msg.channel == ch:
+        elif msg.type == "note_on" and msg.velocity > 0 and msg.channel == MIDI_NOTE_CHANNEL:
             self._on_note_on(msg.note, msg.velocity)
-        elif msg.type in ("aftertouch", "polytouch") and msg.channel == ch:
-            val = msg.value if msg.type == "aftertouch" else msg.value
-            self._on_aftertouch(val)
+        elif msg.type in ("aftertouch", "polytouch") and msg.channel == MIDI_CHANNEL:
+            self._on_aftertouch(msg.value)
 
     # ── CC handler ────────────────────────────────────────────────────────────
     def _on_cc(self, cc: int, value: int) -> None:

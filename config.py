@@ -23,8 +23,9 @@ CELL_H        = 70
 NEURON_RADIUS = 27
 
 # ── MIDI ──────────────────────────────────────────────────────────────────────
-MIDI_CHANNEL   = 0           # 0-indexed
-MIDI_PORT_NAME = "MPD218"    # substring match – set to "" to use first port
+MIDI_CHANNEL      = 0        # knobs / CC channel
+MIDI_NOTE_CHANNEL = 9        # pads  (MPD218 drum channel)
+MIDI_PORT_NAME    = "MPD218" # substring match – set to "" to use first port
 
 # MPD218 pad note ranges (3 banks × 16 pads = notes 36-83)
 PAD_BANK_A = (36, 51)   # root note selection  (C2-D#3)
