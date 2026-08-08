@@ -1,0 +1,234 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+
+\title{NeuronSeqPerform Sonic Implementation Notes}
+\author{Project Technical Documentation}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+This document explains how audio is produced in NeuronSeqPerform from a sonic implementation perspective. It covers:
+\begin{itemize}
+    \item timing and control-rate logic,
+    \item LIF network activity generation and spike pooling,
+    \item FM synthesis voice architecture and sample rendering,
+    \item parameter modulation via MIDI (MPD218),
+    \item practical behavior and constraints relevant to sound.
+\end{itemize}
+
+\section{Signal-Flow Overview}
+Implementation files of interest:
+\begin{itemize}
+    \item main loop: \texttt{main.py}
+    \item LIF wrapper: \texttt{model/lif_network.py}
+    \item synth wrapper: \texttt{model/fm_synth.py}
+    \item native FM core: \texttt{synth\_native/FMSynthMetal.mm}
+    \item FM preset data: \texttt{model/presets.py}
+    \item MIDI mapping: \texttt{control/midi\_handler.py}
+\end{itemize}
+
+Per sequencer tick, the logic is:
+\begin{enumerate}
+    \item Run $N_{\mathrm{lif}}$ micro-steps of LIF simulation.
+    \item Accumulate spike states over those micro-steps.
+    \item Downmix dynamic LIF grid to fixed synth grid $8 \times 16$.
+    \item Trigger FM envelopes for current sequencer column.
+    \item Audio callback renders buffer using current FM synth state.
+\end{enumerate}
+
+\section{Clocking and Control Rate}
+\subsection{Step Duration}
+The sequencer target step duration is a 16th-note at current tempo:
+\begin{equation}
+T_{\mathrm{step}} = \frac{60}{\mathrm{BPM}} \cdot \frac{1}{4}
+\end{equation}
+
+Additional timing terms:
+\begin{itemize}
+    \item swing offset for odd steps,
+    \item random jitter scaled by quantization strength.
+\end{itemize}
+
+If quantization strength is $q \in [0,1]$, jitter amplitude is proportional to $(1-q)$.
+
+\subsection{Audio Buffering}
+Default audio settings from \texttt{config.py}:
+\begin{itemize}
+    \item sample rate: $44100$ Hz,
+    \item block size: $1024$ samples,
+    \item stereo output by duplicating mono synth signal to both channels.
+\end{itemize}
+
+\section{LIF Network as Sonic Driver}
+\subsection{Purpose in this system}
+LIF activity is not directly audible. It controls FM operator envelopes via spike events.
+
+\subsection{Topologies and size}
+Supported topologies (native and fallback):
+\begin{itemize}
+    \item Ring,
+    \item FullyConnected,
+    \item Feedforward,
+    \item SparseRandom,
+    \item SmallWorld.
+\end{itemize}
+
+Neuron count is runtime-modifiable (typically stepped among $\{128,256,512,1024,2048,4096\}$).
+
+\subsection{Membrane update (fallback math)}
+The fallback LIF update follows a standard leaky form:
+\begin{equation}
+\Delta v = \left(-(v-v_{\mathrm{rest}}) + I\right)\frac{\Delta t}{\tau}
+\end{equation}
+with refractory masking and threshold/reset spike behavior.
+
+Native LIF follows equivalent semantics with GPU implementation and explicit topology-driven connectivity.
+
+\subsection{Dynamic-grid to synth-grid mapping}
+Because synth rendering expects a fixed grid of operators ($8 \times 16$), dynamic LIF activity is pooled:
+\begin{itemize}
+    \item columns mapped by nearest-neighbor index selection,
+    \item rows pooled by band-wise logical OR (max-pooling for spikes).
+\end{itemize}
+
+This keeps musical structure stable while allowing large or changing neuron fields.
+
+\section{FM Synth Architecture}
+\subsection{Voice and operator structure}
+The synth uses $16$ preset columns (voices) and $8$ operators per voice.
+Operators are arranged in fixed carrier/modulator pairs:
+\begin{center}
+$(0 \leftarrow 1), (2 \leftarrow 3), (4 \leftarrow 5), (6 \leftarrow 7)$
+\end{center}
+
+At runtime, only one sequencer column is the active target voice; transitions use gain ramps.
+
+\subsection{Per-operator frequency}
+For column $c$ and operator $o$:
+\begin{equation}
+f_{c,o} = f^{\mathrm{base}}_c \cdot r_{c,o} \cdot s_{\mathrm{ratio}}
+\end{equation}
+where:
+\begin{itemize}
+    \item $f^{\mathrm{base}}_c$ is column base frequency (from root+scale mapping),
+    \item $r_{c,o}$ is preset ratio,
+    \item $s_{\mathrm{ratio}}$ is global ratio scale parameter.
+\end{itemize}
+
+\subsection{Spike-gated envelopes}
+At tick transition, for current column $c^*$:
+\begin{equation}
+\mathrm{env}_{o,c^*} \leftarrow \mathrm{spike}_{o,c^*} \in \{0,1\}
+\end{equation}
+Then per audio buffer, carrier and modulator envelopes decay with different coefficients:
+\begin{equation}
+\mathrm{env}^{\mathrm{next}}_{\mathrm{car}} = \alpha_{\mathrm{car}}\,\mathrm{env}_{\mathrm{car}},
+\quad
+\mathrm{env}^{\mathrm{next}}_{\mathrm{mod}} = \alpha_{\mathrm{mod}}\,\mathrm{env}_{\mathrm{mod}}
+\end{equation}
+
+\subsection{Per-pair FM sample equation}
+For pair $p$ in a voice:
+\begin{equation}
+x_p[n] = A_p[n] \sin\left(\phi_c[n] + I_p[n]\sin(\phi_m[n])\right)
+\end{equation}
+with:
+\begin{align}
+A_p[n] &\sim \text{level ramp from envelope} \\
+I_p[n] &\sim \text{mod index ramp} \times s_{\mathrm{mod}}
+\end{align}
+
+Voice sample is average of active pairs, then weighted by voice gain ramp.
+
+\subsection{Voice crossfade and summation}
+Each of 16 voices has a per-buffer gain ramp from current to target state. Final pre-limiter sample:
+\begin{equation}
+y[n] = \sum_{v=1}^{16} g_v[n] \cdot \bar{x}_v[n]
+\end{equation}
+
+\subsection{Output soft limiting}
+Output is soft-clipped and scaled:
+\begin{equation}
+y_{\mathrm{out}}[n] = \tanh(0.7\,y[n])\cdot V_{\mathrm{master}}
+\end{equation}
+
+\section{Preset and Tonal Mapping}
+\subsection{Presets}
+\texttt{model/presets.py} defines 16 presets. Each preset stores:
+\begin{itemize}
+    \item ratios (8 values),
+    \item levels (8 values),
+    \item modulation indices (8 values).
+\end{itemize}
+
+\subsection{Root and scale to base frequencies}
+Column base frequencies are generated from:
+\begin{itemize}
+    \item root MIDI note,
+    \item selected scale semitone offsets,
+    \item degree and octave wrapping over 16 columns.
+\end{itemize}
+
+MIDI-to-frequency conversion:
+\begin{equation}
+f = 440 \cdot 2^{(m-69)/12}
+\end{equation}
+
+\section{MIDI Control Surface (MPD218)}
+\subsection{Knobs (CC)}
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{1.4cm}p{1.2cm}p{7.6cm}}
+\toprule
+Bank & CC & Main sonic effect \\
+\midrule
+A & 3,9,12,13,14,15 & tempo, master volume, active pairs, envelope decay speed, FM index scale, quantization strength \\
+B & 16,17,18,19,20,21 & threshold, tau, weight scale, LIF drive, swing, FM ratio scale \\
+C & 22,23,24,25,26,27 & aftertouch target, topology select, neuron-count select, LIF steps/tick, root select, scale select \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Pads}
+\begin{itemize}
+    \item Bank A: root-note selection + velocity-dependent drive boost.
+    \item Bank B: scale selection.
+    \item Bank C: network functions (randomize/reset, topology cycling, neuron count stepping, etc.).
+\end{itemize}
+
+\subsection{Aftertouch}
+Aftertouch is routed to one selected target (CC22 selects route), including threshold, tau, drive, tempo, quantization, swing, master volume, FM index scale, active pairs, or decay speed.
+
+\section{Native vs Fallback Rendering}
+\subsection{Native (preferred)}
+Native FM synthesis uses Metal compute in \texttt{FMSynthMetal.mm}. The Python layer passes arrays and scalar parameters through pybind.
+
+\subsection{Fallback}
+A Python fallback path exists in \texttt{model/fm\_synth.py} conceptually, but production behavior should be validated against your current branch state. In normal operation on macOS with compiled extension, native path is used.
+
+\section{Practical Sonic Notes}
+\begin{itemize}
+    \item LIF spikes do not generate audio directly; they gate FM envelopes.
+    \item Increasing LIF steps/tick increases temporal density of envelope triggers.
+    \item \texttt{active\_pairs} controls spectral complexity by enabling 1..4 carrier-mod pairs.
+    \item \texttt{mod\_index\_scale} and \texttt{ratio\_scale} are primary timbre shapers.
+    \item \texttt{decay\_speed} changes per-buffer envelope decay and therefore articulation.
+    \item Dynamic neuron-count changes can occur live; sequencer accumulation logic resets safely on shape changes.
+\end{itemize}
+
+\section{Minimal Mental Model}
+For quick reasoning about the sound engine:
+\begin{enumerate}
+    \item LIF generates a binary activity pattern each tick.
+    \item Pattern is pooled to $8 \times 16$ operator triggers.
+    \item Current sequencer column selects one FM voice.
+    \item Triggered operators start at env=1 and decay.
+    \item FM pair sums are crossfaded, mixed, soft-limited, and output as mono-to-stereo.
+\end{enumerate}
+
+\end{document}
