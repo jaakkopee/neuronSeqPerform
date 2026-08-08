@@ -6,7 +6,7 @@ import colorsys
 import numpy as np
 import pygame
 
-from config import SCREEN_WIDTH, SCREEN_HEIGHT, FPS
+from config import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, SCALE_NAMES
 
 
 BG_TOP = (10, 14, 28)
@@ -18,6 +18,22 @@ TEXT_SUB = (140, 164, 210)
 STEP_HIGHLIGHT = (250, 220, 120)
 
 TOPOLOGY_NAMES = ["Ring", "FullyConnected", "Feedforward", "SparseRandom", "SmallWorld"]
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+KNOB_CHEATSHEET = {
+    "A": [(3, "Tempo"), (9, "Volume"), (12, "Pairs"), (13, "Decay"), (14, "FMmod"), (15, "Quant")],
+    "B": [(16, "Thresh"), (17, "Tau"), (18, "Weight"), (19, "Drive"), (20, "Swing"), (21, "Ratio")],
+    "C": [(22, "AT Tgt"), (23, "Topo"), (24, "Neurons"), (25, "Steps"), (26, "Root"), (27, "Scale")],
+}
+PAD_CHEATSHEET_A = [NOTE_NAMES[i % 12] for i in range(16)]
+PAD_CHEATSHEET_B = [
+    (SCALE_NAMES[i][:6] if i < len(SCALE_NAMES) else "---")
+    for i in range(16)
+]
+PAD_CHEATSHEET_C = [
+    "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW", "Topo-", "Topo+",
+    "N--", "N++", "---", "---", "---", "---", "---", "---",
+]
 
 
 def _hsv_to_rgb255(h: float, s: float, v: float) -> tuple[int, int, int]:
@@ -90,7 +106,7 @@ class MatrixView:
         x = 20
         y = 48
         w = SCREEN_WIDTH - 40
-        h = int(SCREEN_HEIGHT * 0.66)
+        h = int(SCREEN_HEIGHT * 0.56)
 
         pygame.draw.rect(self._screen, (9, 16, 34), (x, y, w, h), border_radius=10)
         pygame.draw.rect(self._screen, PANEL_BORDER, (x, y, w, h), width=1, border_radius=10)
@@ -149,7 +165,7 @@ class MatrixView:
         pygame.draw.rect(self._screen, STEP_HIGHLIGHT, (hx, y + h - 5, max(2, int(cw)), 4), border_radius=2)
 
     def _draw_status_panel(self) -> None:
-        y = int(SCREEN_HEIGHT * 0.74)
+        y = int(SCREEN_HEIGHT * 0.64)
         x = 20
         w = SCREEN_WIDTH - 40
         h = SCREEN_HEIGHT - y - 18
@@ -185,10 +201,91 @@ class MatrixView:
         self._screen.blit(self._fn_small.render(line3, True, TEXT_SUB), (x + 12, y + 58))
 
         top_idx = int(cfg.get("topology_index", 0))
-        self._draw_topology_legend(x + 12, y + 84, w - 24, 92, top_idx)
+        self._draw_topology_legend(x + 12, y + 84, w - 24, 54, top_idx)
 
-        hints = "Bank C knobs: CC23 topology  CC24 neurons  CC25 lif-steps  | Pads 74-77 mirror these"
+        self._draw_controller_cheatsheet(x + 12, y + 142, w - 24, h - 172, cfg)
+
+        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. Last received control is highlighted."
         self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, y + h - 22))
+
+    def _draw_controller_cheatsheet(self, x: int, y: int, w: int, h: int, cfg: dict) -> None:
+        last = cfg.get("last_midi") or {}
+        kind = last.get("kind")
+        bank = last.get("bank")
+        slot = int(last.get("slot", -1)) if isinstance(last.get("slot", -1), int) else -1
+
+        if h <= 40:
+            return
+
+        # Knob cheat-sheet (3 rows x 6)
+        knob_h = max(64, int(h * 0.45))
+        self._draw_knob_cheatsheet(x, y, w, knob_h, kind, bank, slot)
+
+        # Pad cheat-sheet (3 rows x 16)
+        pad_y = y + knob_h + 6
+        pad_h = max(50, h - knob_h - 6)
+        self._draw_pad_cheatsheet(x, pad_y, w, pad_h, kind, bank, slot)
+
+        if last:
+            cc = last.get("cc")
+            note = last.get("note")
+            label = last.get("label", "")
+            if kind == "cc":
+                info = f"Last: Knob Bank {bank}{slot + 1}  CC{cc}  {label}"
+            elif kind == "pad":
+                info = f"Last: Pad Bank {bank}{slot + 1:02d}  Note {note}  {label}"
+            else:
+                info = "Last: -"
+            self._screen.blit(self._fn_small.render(info, True, (196, 216, 250)), (x, y - 14))
+
+    def _draw_knob_cheatsheet(self, x: int, y: int, w: int, h: int, kind: str, bank: str, slot: int) -> None:
+        banks = ["A", "B", "C"]
+        row_gap = 4
+        row_h = max(16, int((h - row_gap * 2) / 3))
+        for ri, b in enumerate(banks):
+            ry = y + ri * (row_h + row_gap)
+            items = KNOB_CHEATSHEET[b]
+            gap = 4
+            tile_w = max(52, int((w - gap * 5) / 6))
+            for ci, (cc, lbl) in enumerate(items):
+                rx = x + ci * (tile_w + gap)
+                selected = (kind == "cc" and bank == b and slot == ci)
+                fill = (36, 54, 86) if selected else (14, 22, 42)
+                border = STEP_HIGHLIGHT if selected else (50, 72, 112)
+                pygame.draw.rect(self._screen, fill, (rx, ry, tile_w, row_h), border_radius=4)
+                pygame.draw.rect(self._screen, border, (rx, ry, tile_w, row_h), width=1, border_radius=4)
+                txt = f"{b}{ci+1} CC{cc} {lbl}"
+                surf = self._fn_small.render(txt, True, TEXT_MAIN if selected else TEXT_SUB)
+                self._screen.blit(surf, (rx + 4, ry + max(1, row_h // 2 - 6)))
+
+    def _draw_pad_cheatsheet(self, x: int, y: int, w: int, h: int, kind: str, bank: str, slot: int) -> None:
+        rows = [
+            ("A", PAD_CHEATSHEET_A),
+            ("B", PAD_CHEATSHEET_B),
+            ("C", PAD_CHEATSHEET_C),
+        ]
+        row_gap = 3
+        row_h = max(12, int((h - row_gap * 2) / 3))
+        gap = 2
+        tile_w = max(24, int((w - gap * 15) / 16))
+
+        for ri, (b, labels) in enumerate(rows):
+            ry = y + ri * (row_h + row_gap)
+            for ci in range(16):
+                rx = x + ci * (tile_w + gap)
+                selected = (kind == "pad" and bank == b and slot == ci)
+                fill = (42, 62, 90) if selected else (13, 19, 34)
+                border = STEP_HIGHLIGHT if selected else (42, 60, 96)
+                pygame.draw.rect(self._screen, fill, (rx, ry, tile_w, row_h), border_radius=3)
+                pygame.draw.rect(self._screen, border, (rx, ry, tile_w, row_h), width=1, border_radius=3)
+
+                if ci == 0:
+                    bank_lbl = self._fn_small.render(b, True, (140, 184, 240))
+                    self._screen.blit(bank_lbl, (rx + 2, ry + 1))
+
+                label = labels[ci]
+                txt = self._fn_small.render(label, True, TEXT_MAIN if selected else TEXT_SUB)
+                self._screen.blit(txt, txt.get_rect(center=(rx + tile_w // 2, ry + row_h // 2)))
 
     def _draw_topology_legend(self, x: int, y: int, w: int, h: int, selected_idx: int) -> None:
         title = self._fn_small.render("Topology Legend", True, TEXT_SUB)

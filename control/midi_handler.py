@@ -68,6 +68,21 @@ class MIDIHandler:
         "active_pairs", "decay_speed",
     ]
     NEURON_COUNT_STEPS = [128, 256, 512, 1024, 2048, 4096]
+    CC_LABELS = {
+        3: "Tempo", 9: "Volume", 12: "Pairs", 13: "Decay", 14: "FMmod", 15: "Quant",
+        16: "Thresh", 17: "Tau", 18: "Weight", 19: "Drive", 20: "Swing", 21: "Ratio",
+        22: "AT Target", 23: "Topology", 24: "Neurons", 25: "LIF Steps", 26: "Root", 27: "Scale",
+    }
+    CC_META = {
+        3: ("A", 0), 9: ("A", 1), 12: ("A", 2), 13: ("A", 3), 14: ("A", 4), 15: ("A", 5),
+        16: ("B", 0), 17: ("B", 1), 18: ("B", 2), 19: ("B", 3), 20: ("B", 4), 21: ("B", 5),
+        22: ("C", 0), 23: ("C", 1), 24: ("C", 2), 25: ("C", 3), 26: ("C", 4), 27: ("C", 5),
+    }
+    BANK_C_PAD_LABELS = [
+        "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW",
+        "Topo-", "Topo+", "N--", "N++",
+        "---", "---", "---", "---", "---", "---",
+    ]
 
     # ── construction ──────────────────────────────────────────────────────────
     def __init__(self, network, synth, config_state: dict):
@@ -88,10 +103,34 @@ class MIDIHandler:
 
         # internal: track absolute weight scale to avoid cumulative drift
         self._weight_scale = 1.0
+        self._cfg.setdefault("noteon_flash", {})
+        self._cfg.setdefault("last_midi", None)
 
         # quick static audit: ensure all main runtime parameters are reachable
         # via knobs, pads, or aftertouch routing.
         self._audit_controller_coverage()
+
+    def _set_last_cc(self, cc: int) -> None:
+        label = self.CC_LABELS.get(cc, f"CC{cc}")
+        bank, slot = self.CC_META.get(cc, ("?", -1))
+        self._cfg["last_midi"] = {
+            "kind": "cc",
+            "cc": cc,
+            "bank": bank,
+            "slot": slot,
+            "label": label,
+            "timestamp": time.monotonic(),
+        }
+
+    def _set_last_pad(self, note: int, bank: str, slot: int, label: str) -> None:
+        self._cfg["last_midi"] = {
+            "kind": "pad",
+            "note": note,
+            "bank": bank,
+            "slot": slot,
+            "label": label,
+            "timestamp": time.monotonic(),
+        }
 
     def _audit_controller_coverage(self) -> None:
         required = {
@@ -176,6 +215,8 @@ class MIDIHandler:
     # ── CC handler ────────────────────────────────────────────────────────────
     def _on_cc(self, cc: int, value: int) -> None:
         n = value / 127.0   # normalised 0-1
+        if cc in self.CC_LABELS:
+            self._set_last_cc(cc)
 
         # ── Bank A : performance ───────────────────────────────────────────────
         if cc == 3:    # K1  tempo
@@ -281,6 +322,9 @@ class MIDIHandler:
         self._cfg["noteon_flash"][note] = time.monotonic()
 
         if lo_a <= note <= hi_a:
+            slot = note - lo_a
+            label = _NOTE_NAMES[slot % 12]
+            self._set_last_pad(note, "A", slot, label)
             # ── Bank A : root note (pitch class → octave 4) ───────────────────
             pitch_class    = (note - lo_a) % 12
             self.root_note = 60 + pitch_class       # C4=60 … B4=71
@@ -291,6 +335,9 @@ class MIDIHandler:
             self._apply_tonality()
 
         elif lo_b <= note <= hi_b:
+            slot = note - lo_b
+            label = SCALE_NAMES[slot] if slot < len(SCALE_NAMES) else "---"
+            self._set_last_pad(note, "B", slot, label)
             # ── Bank B : scale / mode selection ──────────────────────────────
             idx = note - lo_b                       # 0-15
             if idx < len(SCALE_NAMES):
@@ -299,6 +346,9 @@ class MIDIHandler:
             self._apply_tonality()
 
         elif lo_c <= note <= hi_c:
+            slot = note - lo_c
+            label = self.BANK_C_PAD_LABELS[slot] if slot < len(self.BANK_C_PAD_LABELS) else "---"
+            self._set_last_pad(note, "C", slot, label)
             # ── Bank C : network functions ────────────────────────────────────
             self._network_function(note - lo_c, velocity)
 

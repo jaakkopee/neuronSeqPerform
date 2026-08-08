@@ -72,6 +72,9 @@ def main() -> None:
         "topology_index":         0,
         "topology_name":          "Ring",
         "neuron_count":           512,
+        "last_midi":              None,
+        "controller_coverage_ok": False,
+        "controller_coverage_missing": [],
         "noteon_flash":            {},   # note -> monotonic timestamp
     }
 
@@ -156,7 +159,10 @@ def main() -> None:
             accumulated = None
             for _ in range(config_state["lif_steps"]):
                 spikes_step = network.step()
-                if accumulated is None:
+                # MIDI can change neuron count/topology at any time, which can
+                # change LIF grid shape between micro-steps. Restart accumulation
+                # on shape changes to avoid broadcast errors.
+                if accumulated is None or accumulated.shape != spikes_step.shape:
                     accumulated = spikes_step.copy()
                 else:
                     accumulated |= spikes_step
