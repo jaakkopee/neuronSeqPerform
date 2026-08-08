@@ -32,8 +32,12 @@ Note On  (MPD218 pads, channel 9)
            69  reset potentials
            70  +4 LIF steps/tick  (denser patterns)
            71  -4 LIF steps/tick  (sparser patterns)
-           72  randomise drive
-           73  invert weights
+           72  drive boost
+           73  halve weight scale
+           74  topology previous
+           75  topology next
+           76  neuron count down
+           77  neuron count up
 
 Aftertouch / Channel Pressure
 ───────────────────────────────
@@ -42,7 +46,6 @@ Aftertouch / Channel Pressure
 
 import threading
 import time
-import numpy as np
 import mido
 
 from config import MIDI_CHANNEL, MIDI_NOTE_CHANNEL, SCALES, SCALE_NAMES, PAD_BANK_A, PAD_BANK_B, PAD_BANK_C
@@ -244,15 +247,13 @@ class MIDIHandler:
 
     def _network_function(self, func: int, velocity: int) -> None:
         """Execute a pad-triggered network function (Bank C, func = note - 68)."""
-        n_neurons = len(self._network.external_drive)
         vel_n     = velocity / 127.0
 
         if func == 0:    # randomise weights
             self._network.randomize_weights()
             print("[MIDI] Weights randomised")
         elif func == 1:  # reset potentials
-            self._network.v[:]          = 0.0
-            self._network.refractory[:] = 0.0
+            self._network.reset_state()
             print("[MIDI] Network potentials reset")
         elif func == 2:  # +4 LIF steps
             steps = min(64, self._cfg.get("lif_steps", 12) + 4)
@@ -263,14 +264,34 @@ class MIDIHandler:
             self._cfg["lif_steps"] = steps
             print(f"[MIDI] LIF steps → {steps}")
         elif func == 4:  # randomise drive (velocity scales upper bound)
-            hi = 1.0 + vel_n * 1.5
-            self._network.external_drive[:] = np.random.uniform(1.0, hi, n_neurons).astype(np.float32)
-            self._cfg["drive_n"] = (1.0 + hi) / 2.0 / 2.0  # approx mid for display
+            hi = 0.6 + vel_n * 0.4
+            self._network.set_global_drive(hi)
+            self._cfg["drive_n"] = hi
             print(f"[MIDI] Drive randomised  hi={hi:.2f}")
         elif func == 5:  # invert weights
-            self._network.weights *= -1
-            print("[MIDI] Weights inverted")
-        # funcs 6-15 spare
+            self._network.set_weight_scale(max(0.0, self._weight_scale * 0.5))
+            self._weight_scale = max(0.0, self._weight_scale * 0.5)
+            self._cfg["weight_scale"] = self._weight_scale
+            print(f"[MIDI] Weight scale halved → {self._weight_scale:.2f}")
+        elif func == 6:  # previous topology
+            idx = self._network.cycle_topology(-1)
+            self._cfg["topology_index"] = idx
+            self._cfg["topology_name"] = self._network.topology_name()
+            print(f"[MIDI] Topology → {self._cfg['topology_name']}")
+        elif func == 7:  # next topology
+            idx = self._network.cycle_topology(+1)
+            self._cfg["topology_index"] = idx
+            self._cfg["topology_name"] = self._network.topology_name()
+            print(f"[MIDI] Topology → {self._cfg['topology_name']}")
+        elif func == 8:  # smaller neuron count
+            ncount = self._network.nudge_neuron_count_step(-1)
+            self._cfg["neuron_count"] = ncount
+            print(f"[MIDI] Neurons → {ncount}")
+        elif func == 9:  # larger neuron count
+            ncount = self._network.nudge_neuron_count_step(+1)
+            self._cfg["neuron_count"] = ncount
+            print(f"[MIDI] Neurons → {ncount}")
+        # funcs 10-15 spare
 
     # ── Aftertouch handler ────────────────────────────────────────────────────
     def _on_aftertouch(self, value: int) -> None:

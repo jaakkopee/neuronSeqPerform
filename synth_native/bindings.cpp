@@ -6,7 +6,9 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include "FMSynth.h"
+#include "LIFNetworkNative.h"
 
 namespace py = pybind11;
 
@@ -88,4 +90,48 @@ PYBIND11_MODULE(_fm_synth, m) {
                  return out;
              },
              "Return operator frequencies as (NUM_OPS × COLS) float32 array.");
+
+    py::class_<LIFNetworkNative>(m, "LIFNetwork")
+        .def(py::init<int, int>(),
+             py::arg("neuron_count") = 512,
+             py::arg("cols") = 16,
+             "Create a Metal-backed LIF network.")
+
+        .def("set_topology", &LIFNetworkNative::set_topology, py::arg("topology_index"))
+        .def("topology", &LIFNetworkNative::topology)
+        .def("set_neuron_count", &LIFNetworkNative::set_neuron_count, py::arg("neuron_count"))
+        .def("neuron_count", &LIFNetworkNative::neuron_count)
+        .def("rows", &LIFNetworkNative::rows)
+        .def("cols", &LIFNetworkNative::cols)
+
+        .def("set_threshold", &LIFNetworkNative::set_threshold, py::arg("threshold"))
+        .def("set_tau", &LIFNetworkNative::set_tau, py::arg("tau"))
+        .def("set_refractory_ms", &LIFNetworkNative::set_refractory_ms, py::arg("refractory_ms"))
+        .def("set_weight_scale", &LIFNetworkNative::set_weight_scale, py::arg("scale"))
+        .def("set_global_drive", &LIFNetworkNative::set_global_drive, py::arg("drive"))
+
+        .def("set_external_drive",
+             [](LIFNetworkNative& self, py::array_t<float, py::array::c_style> values) {
+                 self.set_external_drive(values.data(), static_cast<int>(values.size()));
+             },
+             py::arg("values"))
+        .def("set_neuron_drive", &LIFNetworkNative::set_neuron_drive,
+             py::arg("row"), py::arg("col"), py::arg("value"))
+
+        .def("randomize_weights", &LIFNetworkNative::randomize_weights)
+        .def("reset_state", &LIFNetworkNative::reset_state)
+        .def("step", &LIFNetworkNative::step)
+
+        .def("get_spikes",
+             [](const LIFNetworkNative& self) -> py::array_t<float> {
+                 py::array_t<float> out({self.rows(), self.cols()});
+                 self.get_spikes(out.mutable_data());
+                 return out;
+             })
+        .def("get_potentials",
+             [](const LIFNetworkNative& self) -> py::array_t<float> {
+                 py::array_t<float> out({self.rows(), self.cols()});
+                 self.get_potentials(out.mutable_data());
+                 return out;
+             });
 }

@@ -19,6 +19,8 @@ import pybind11
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 class ObjCppBuildExt(build_ext):
     """
@@ -66,7 +68,8 @@ class ObjCppBuildExt(build_ext):
         for inc in (ext.include_dirs or []):
             cmd.append(f"-I{inc}")
 
-        cmd += ["-c", src, "-o", obj]
+        src_path = src if os.path.isabs(src) else os.path.join(BASE_DIR, src)
+        cmd += ["-c", src_path, "-o", obj]
 
         print(" ".join(cmd))
         subprocess.run(cmd, check=True)
@@ -74,14 +77,15 @@ class ObjCppBuildExt(build_ext):
 
 
 ext = Extension(
-    "synth_native._fm_synth",
+    "_fm_synth",
     sources=[
-        "FMSynthMetal.mm",   # compiled to .o by ObjCppBuildExt above
-        "bindings.cpp",
+        os.path.join(BASE_DIR, "FMSynthMetal.mm"),   # compiled to .o by ObjCppBuildExt above
+        os.path.join(BASE_DIR, "LIFNetworkNative.mm"),
+        os.path.join(BASE_DIR, "bindings.cpp"),
     ],
     include_dirs=[
         pybind11.get_include(),
-        ".",
+        BASE_DIR,
     ],
     extra_compile_args=["-std=c++17", "-O2"],
     extra_link_args=[

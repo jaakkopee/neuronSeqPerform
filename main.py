@@ -69,12 +69,19 @@ def main() -> None:
         "root_note":              60,
         "aftertouch_target":      "threshold",
         "lif_steps":              12,
+        "topology_index":         0,
+        "topology_name":          "Ring",
+        "neuron_count":           512,
         "noteon_flash":            {},   # note -> monotonic timestamp
     }
 
     # ── model ──────────────────────────────────────────────────────────────────
     network = LIFNetwork()
     synth   = make_synth()
+
+    config_state["topology_index"] = network.topology_index
+    config_state["topology_name"] = network.topology_name()
+    config_state["neuron_count"] = network.neuron_count
 
     # Seed with a musical scale
     synth.set_all_base_freqs(_build_initial_freqs(60, "major"))
@@ -146,12 +153,21 @@ def main() -> None:
             current_step = (current_step + 1) % COLS
 
             # ── LIF micro-steps: accumulate spikes across all sub-steps ───────
-            accumulated = np.zeros((ROWS, COLS), bool)
+            accumulated = None
             for _ in range(config_state["lif_steps"]):
-                accumulated |= network.step()
+                spikes_step = network.step()
+                if accumulated is None:
+                    accumulated = spikes_step.copy()
+                else:
+                    accumulated |= spikes_step
+
+            if accumulated is None:
+                continue
+
+            synth_spikes = network.get_synth_spikes(ROWS, COLS)
 
             # ── atomically activate voice + gate env from spikes ──────────────
-            synth.trigger_and_activate(accumulated, current_step)
+            synth.trigger_and_activate(synth_spikes, current_step)
 
             # ── update view state ─────────────────────────────────────────────
             spikes     = accumulated
@@ -161,6 +177,9 @@ def main() -> None:
 
             # propagate aftertouch target to config_state for display
             config_state["aftertouch_target"] = midi.aftertouch_target if midi_ok else "threshold"
+            config_state["topology_index"] = network.topology_index
+            config_state["topology_name"] = network.topology_name()
+            config_state["neuron_count"] = network.neuron_count
 
             view.update(
                 spikes       = spikes,
