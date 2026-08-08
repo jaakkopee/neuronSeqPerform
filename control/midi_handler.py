@@ -20,7 +20,12 @@ MPD218 knob layout  (all CCs 0-127, channel 0)
   CC 21   K6  FM ratio scale            (0.5 – 2.0)
 
   BANK C  ── extras ────────────────────────────────────────────────────────────
-  CC 22   K1  aftertouch target selector
+    CC 22   K1  aftertouch target selector
+    CC 23   K2  LIF topology direct select     (Ring..SmallWorld)
+    CC 24   K3  LIF neuron count direct select  (128..4096)
+    CC 25   K4  LIF steps per tick              (1..64)
+    CC 26   K5  root note direct select         (C..B)
+    CC 27   K6  scale direct select             (first 10 scales)
 
 Note On  (MPD218 pads, channel 9)
 ────────────────────────────────
@@ -62,6 +67,7 @@ class MIDIHandler:
         "quantize",  "swing", "master_vol", "mod_index_scale",
         "active_pairs", "decay_speed",
     ]
+    NEURON_COUNT_STEPS = [128, 256, 512, 1024, 2048, 4096]
 
     # ── construction ──────────────────────────────────────────────────────────
     def __init__(self, network, synth, config_state: dict):
@@ -82,6 +88,42 @@ class MIDIHandler:
 
         # internal: track absolute weight scale to avoid cumulative drift
         self._weight_scale = 1.0
+
+        # quick static audit: ensure all main runtime parameters are reachable
+        # via knobs, pads, or aftertouch routing.
+        self._audit_controller_coverage()
+
+    def _audit_controller_coverage(self) -> None:
+        required = {
+            "tempo", "master_volume", "active_pairs", "decay_speed",
+            "mod_index_scale", "quantization_strength", "threshold", "tau",
+            "weight_scale", "drive_n", "swing_amount", "ratio_scale",
+            "aftertouch_target", "topology_index", "neuron_count",
+            "lif_steps", "root_note", "scale_name",
+        }
+
+        knob_controls = {
+            "tempo", "master_volume", "active_pairs", "decay_speed",
+            "mod_index_scale", "quantization_strength", "threshold", "tau",
+            "weight_scale", "drive_n", "swing_amount", "ratio_scale",
+            "aftertouch_target", "topology_index", "neuron_count",
+            "lif_steps", "root_note", "scale_name",
+        }
+        pad_controls = {"root_note", "scale_name", "lif_steps", "topology_index", "neuron_count"}
+        aftertouch_controls = {
+            "threshold", "tau", "drive_n", "tempo", "quantization_strength",
+            "swing_amount", "master_volume", "mod_index_scale", "active_pairs", "decay_speed",
+        }
+
+        exposed = knob_controls | pad_controls | aftertouch_controls
+        missing = sorted(required - exposed)
+        self._cfg["controller_coverage_ok"] = (len(missing) == 0)
+        self._cfg["controller_coverage_missing"] = missing
+
+        if missing:
+            print(f"[MIDI] Controller mapping missing: {missing}")
+        else:
+            print(f"[MIDI] Controller mapping OK ({len(required)} parameters reachable)")
 
     # ── port management ───────────────────────────────────────────────────────
     def open_port(self, port_name: str = None) -> bool:
@@ -197,6 +239,37 @@ class MIDIHandler:
             self.aftertouch_target = self.AFTERTOUCH_TARGETS[idx]
             self._cfg["aftertouch_target"] = self.aftertouch_target
             print(f"[MIDI] Aftertouch target → {self.aftertouch_target}")
+
+        elif cc == 23:  # K2  direct topology select
+            idx = round(n * 4.0)
+            self._network.set_topology_index(idx)
+            self._cfg["topology_index"] = self._network.topology_index
+            self._cfg["topology_name"] = self._network.topology_name()
+            print(f"[MIDI] Topology → {self._cfg['topology_name']}")
+
+        elif cc == 24:  # K3  direct neuron count select
+            idx = round(n * (len(self.NEURON_COUNT_STEPS) - 1))
+            idx = max(0, min(idx, len(self.NEURON_COUNT_STEPS) - 1))
+            ncount = self._network.set_neuron_count(self.NEURON_COUNT_STEPS[idx])
+            self._cfg["neuron_count"] = ncount
+            print(f"[MIDI] Neurons → {ncount}")
+
+        elif cc == 25:  # K4  direct LIF steps select
+            steps = 1 + round(n * 63.0)
+            self._cfg["lif_steps"] = steps
+            print(f"[MIDI] LIF steps → {steps}")
+
+        elif cc == 26:  # K5  direct root note select (pitch class)
+            pitch_class = round(n * 11.0)
+            self.root_note = 60 + pitch_class
+            self._apply_tonality()
+
+        elif cc == 27:  # K6  direct scale select
+            idx = round(n * (len(SCALE_NAMES) - 1))
+            idx = max(0, min(idx, len(SCALE_NAMES) - 1))
+            self.scale_idx = idx
+            self.scale_name = SCALE_NAMES[idx]
+            self._apply_tonality()
 
     # ── Note On handler ───────────────────────────────────────────────────────
     def _on_note_on(self, note: int, velocity: int) -> None:

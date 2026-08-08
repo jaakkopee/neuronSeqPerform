@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import colorsys
-import time
 import numpy as np
 import pygame
 
@@ -17,6 +16,8 @@ PANEL_BORDER = (38, 56, 98)
 TEXT_MAIN = (230, 238, 255)
 TEXT_SUB = (140, 164, 210)
 STEP_HIGHLIGHT = (250, 220, 120)
+
+TOPOLOGY_NAMES = ["Ring", "FullyConnected", "Feedforward", "SparseRandom", "SmallWorld"]
 
 
 def _hsv_to_rgb255(h: float, s: float, v: float) -> tuple[int, int, int]:
@@ -183,8 +184,109 @@ class MatrixView:
         self._screen.blit(self._fn_small.render(line2, True, TEXT_SUB), (x + 12, y + 38))
         self._screen.blit(self._fn_small.render(line3, True, TEXT_SUB), (x + 12, y + 58))
 
-        hints = "Bank C: 74/75 topology  76/77 neuron count  70/71 lif steps"
+        top_idx = int(cfg.get("topology_index", 0))
+        self._draw_topology_legend(x + 12, y + 84, w - 24, 92, top_idx)
+
+        hints = "Bank C knobs: CC23 topology  CC24 neurons  CC25 lif-steps  | Pads 74-77 mirror these"
         self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, y + h - 22))
+
+    def _draw_topology_legend(self, x: int, y: int, w: int, h: int, selected_idx: int) -> None:
+        title = self._fn_small.render("Topology Legend", True, TEXT_SUB)
+        self._screen.blit(title, (x, y))
+
+        tile_y = y + 14
+        tile_h = h - 22
+        gap = 6
+        n = len(TOPOLOGY_NAMES)
+        tile_w = max(40, int((w - gap * (n - 1)) / n))
+
+        for i, name in enumerate(TOPOLOGY_NAMES):
+            tx = x + i * (tile_w + gap)
+            selected = (i == selected_idx)
+            fill = (24, 36, 64) if selected else (16, 22, 40)
+            border = STEP_HIGHLIGHT if selected else (48, 70, 110)
+            pygame.draw.rect(self._screen, fill, (tx, tile_y, tile_w, tile_h), border_radius=6)
+            pygame.draw.rect(self._screen, border, (tx, tile_y, tile_w, tile_h), width=1, border_radius=6)
+
+            icon_rect = pygame.Rect(tx + 6, tile_y + 6, tile_w - 12, max(10, tile_h - 28))
+            self._draw_topology_icon(i, icon_rect, border)
+
+            label = self._fn_small.render(name[:7], True, TEXT_MAIN if selected else TEXT_SUB)
+            self._screen.blit(label, label.get_rect(center=(tx + tile_w // 2, tile_y + tile_h - 10)))
+
+    def _draw_topology_icon(self, kind: int, rect: pygame.Rect, color: tuple[int, int, int]) -> None:
+        cx, cy = rect.centerx, rect.centery
+        rw, rh = rect.width, rect.height
+
+        def node(px: int, py: int) -> None:
+            pygame.draw.circle(self._screen, color, (px, py), 2)
+
+        if kind == 0:  # Ring
+            pts = [
+                (cx - rw // 4, cy),
+                (cx - rw // 8, cy - rh // 3),
+                (cx + rw // 8, cy - rh // 3),
+                (cx + rw // 4, cy),
+                (cx + rw // 8, cy + rh // 3),
+                (cx - rw // 8, cy + rh // 3),
+            ]
+            for i in range(len(pts)):
+                pygame.draw.line(self._screen, color, pts[i], pts[(i + 1) % len(pts)], 1)
+                node(*pts[i])
+
+        elif kind == 1:  # FullyConnected
+            pts = [
+                (cx - rw // 4, cy - rh // 3),
+                (cx + rw // 4, cy - rh // 3),
+                (cx - rw // 4, cy + rh // 3),
+                (cx + rw // 4, cy + rh // 3),
+            ]
+            for i in range(len(pts)):
+                for j in range(i + 1, len(pts)):
+                    pygame.draw.line(self._screen, color, pts[i], pts[j], 1)
+            for p in pts:
+                node(*p)
+
+        elif kind == 2:  # Feedforward
+            cols = [cx - rw // 4, cx, cx + rw // 4]
+            ys = [cy - rh // 4, cy + rh // 4]
+            for c0, c1 in zip(cols[:-1], cols[1:]):
+                for y0 in ys:
+                    for y1 in ys:
+                        pygame.draw.line(self._screen, color, (c0, y0), (c1, y1), 1)
+            for c in cols:
+                for yy in ys:
+                    node(c, yy)
+
+        elif kind == 3:  # SparseRandom
+            pts = [
+                (cx - rw // 4, cy - rh // 4),
+                (cx - rw // 8, cy + rh // 5),
+                (cx + rw // 10, cy - rh // 6),
+                (cx + rw // 4, cy + rh // 6),
+                (cx + rw // 6, cy - rh // 3),
+            ]
+            edges = [(0, 1), (1, 2), (2, 3), (0, 4)]
+            for a, b in edges:
+                pygame.draw.line(self._screen, color, pts[a], pts[b], 1)
+            for p in pts:
+                node(*p)
+
+        else:  # SmallWorld
+            pts = [
+                (cx - rw // 4, cy),
+                (cx - rw // 8, cy - rh // 3),
+                (cx + rw // 8, cy - rh // 3),
+                (cx + rw // 4, cy),
+                (cx + rw // 8, cy + rh // 3),
+                (cx - rw // 8, cy + rh // 3),
+            ]
+            for i in range(len(pts)):
+                pygame.draw.line(self._screen, color, pts[i], pts[(i + 1) % len(pts)], 1)
+            pygame.draw.line(self._screen, color, pts[0], pts[3], 1)
+            pygame.draw.line(self._screen, color, pts[1], pts[4], 1)
+            for p in pts:
+                node(*p)
 
     def handle_events(self) -> bool:
         for event in pygame.event.get():
