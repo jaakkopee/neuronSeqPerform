@@ -12,7 +12,7 @@ MPD218 knob layout  (all CCs 0-127, channel 0)
   CC 15   K6  quantization strength     (0.0 – 1.0)
 
   BANK B  ── network controls ─────────────────────────────────────────────────
-  CC 16   K1  network firing threshold  (0.3 – 2.0)
+    CC 16   K1  network firing threshold  (0.1 – 2.0)
   CC 17   K2  network time constant τ   (5 – 100 ms)
   CC 18   K3  synaptic weight scale     (0.0 – 3.0)
   CC 19   K4  global external drive     (0.0 – 1.0)
@@ -246,7 +246,7 @@ class MIDIHandler:
 
         # ── Bank B : network ──────────────────────────────────────────────────
         elif cc == 16:  # K1  network firing threshold
-            v = 0.3 + n * 1.7
+            v = 0.1 + n * 1.9
             self._network.set_threshold(v)
             self._cfg["threshold"] = v
 
@@ -422,7 +422,7 @@ class MIDIHandler:
         t = self.aftertouch_target
 
         if t == "threshold":
-            self._network.set_threshold(0.3 + n * 1.7)
+            self._network.set_threshold(0.1 + n * 1.9)
         elif t == "tau":
             self._network.set_tau(5.0 + n * 95.0)
         elif t == "drive":

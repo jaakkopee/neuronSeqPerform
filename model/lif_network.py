@@ -171,8 +171,8 @@ class LIFNetwork:
         self.weights = self._base_weights * v
 
     def set_global_drive(self, value: float) -> None:
-        # Keep MIDI semantics: normalized 0..1 mapped to useful LIF drive range.
-        drive = 0.5 + float(value) * 1.5
+        # Keep MIDI semantics: normalized 0..1 mapped to a wider LIF drive range.
+        drive = 0.25 + float(value) * 2.75
         self._global_drive = drive
         if self._native is not None:
             self._native.set_global_drive(drive)
