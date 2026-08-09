@@ -79,32 +79,32 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 
 ## Phase 2: E/I Balance and Delay Structure
 
-- [ ] NV-0201 Add excitatory and inhibitory population assignment
+- [x] NV-0201 Add excitatory and inhibitory population assignment
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: neuron type mask with configurable inhibitory ratio.
 - Done when: model computes both E and I contributions and remains stable at defaults.
 
-- [ ] NV-0202 Add inhibitory gain control
+- [x] NV-0202 Add inhibitory gain control
 - Scope: [model/lif_network.py](model/lif_network.py), [control/midi_handler.py](control/midi_handler.py)
 - Deliverable: parameter controlling I contribution strength.
 - Done when: increasing inhibitory gain visibly suppresses global lock-in.
 
-- [ ] NV-0203 Split weight scaling into E-scale and I-scale
+- [x] NV-0203 Split weight scaling into E-scale and I-scale
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: separate scaling terms for excitatory and inhibitory edges.
 - Done when: independent control paths are testable and reflected in activity.
 
-- [ ] NV-0204 Add short delay bins for recurrent influence
+- [x] NV-0204 Add short delay bins for recurrent influence
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: delay buffer with configurable spread in micro-step units.
 - Done when: delayed coupling generates phase-shifted motifs.
 
-- [ ] NV-0205 Add delay jitter
+- [x] NV-0205 Add delay jitter
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: small random perturbation of assigned delays.
 - Done when: jitter reduces repetitive lock patterns without turning to noise.
 
-- [ ] NV-0206 Expose E/I and delay controls in runtime state
+- [x] NV-0206 Expose E/I and delay controls in runtime state
 - Scope: [main.py](main.py), [control/midi_handler.py](control/midi_handler.py)
 - Deliverable: parameters visible, serializable, and controllable.
 - Done when: values appear in UI/debug state and can be changed live.

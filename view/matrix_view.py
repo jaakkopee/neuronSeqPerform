@@ -32,7 +32,7 @@ PAD_CHEATSHEET_B = [
 ]
 PAD_CHEATSHEET_C = [
     "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW", "Topo-", "Topo+",
-    "N--", "N++", "Het-", "Het+", "---", "---", "---", "---",
+    "N--", "N++", "Het-", "Het+", "I--", "I++", "Dly-", "Dly+",
 ]
 
 
@@ -202,7 +202,10 @@ class MatrixView:
             f"{cfg.get('tau_spread', 0.0):.2f}/"
             f"{cfg.get('refractory_spread', 0.0):.2f}/"
             f"{cfg.get('drive_spread', 0.0):.2f}   "
-            f"Seed: {cfg.get('hetero_seed', 1337)}"
+            f"E/I r:{cfg.get('inhibitory_ratio', 0.18):.2f} g:{cfg.get('inhibitory_gain', 1.0):.2f} "
+            f"xE:{cfg.get('excitatory_scale', 1.0):.2f} xI:{cfg.get('inhibitory_scale', 1.0):.2f}   "
+            f"Dly:{cfg.get('delay_spread_steps', 0)} jit:{cfg.get('delay_jitter', 0.0):.2f}   "
+            f"Seed:{cfg.get('hetero_seed', 1337)}"
         )
 
         self._screen.blit(self._fn_medium.render(line1, True, TEXT_MAIN), (x + 12, y + 12))
@@ -221,7 +224,7 @@ class MatrixView:
 
         self._draw_controller_cheatsheet(x + 12, y + 160, w - 24, h - 190, cfg)
 
-        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. *AT target includes heterogeneity."
+        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. *AT target includes heterogeneity + phase-2 controls."
         self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, y + h - 22))
 
     def _draw_metric_panel(self, x: int, y: int, w: int, h: int, cfg: dict) -> None:

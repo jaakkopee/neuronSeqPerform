@@ -45,6 +45,10 @@ Note On  (MPD218 pads, channel 9)
            77  neuron count up
            78  heterogeneity down
            79  heterogeneity up
+           80  inhibitory ratio down
+           81  inhibitory ratio up
+           82  delay spread down
+           83  delay spread up
 
 Aftertouch / Channel Pressure
 ───────────────────────────────
@@ -68,6 +72,7 @@ class MIDIHandler:
         "threshold", "tau", "drive", "tempo",
         "quantize",  "swing", "master_vol", "mod_index_scale",
         "active_pairs", "decay_speed", "heterogeneity",
+        "inhibitory_ratio", "inhibitory_gain", "delay_spread", "delay_jitter",
     ]
     NEURON_COUNT_STEPS = [128, 256, 512, 1024, 2048, 4096]
     CC_LABELS = {
@@ -83,7 +88,7 @@ class MIDIHandler:
     BANK_C_PAD_LABELS = [
         "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW",
         "Topo-", "Topo+", "N--", "N++",
-        "Het-", "Het+", "---", "---", "---", "---",
+        "Het-", "Het+", "I--", "I++", "Dly-", "Dly+",
     ]
 
     # ── construction ──────────────────────────────────────────────────────────
@@ -108,6 +113,7 @@ class MIDIHandler:
         self._cfg.setdefault("noteon_flash", {})
         self._cfg.setdefault("last_midi", None)
         self._sync_heterogeneity_cfg()
+        self._sync_phase2_cfg()
 
         # quick static audit: ensure all main runtime parameters are reachable
         # via knobs, pads, or aftertouch routing.
@@ -142,6 +148,7 @@ class MIDIHandler:
             "weight_scale", "drive_n", "swing_amount", "ratio_scale",
             "aftertouch_target", "topology_index", "neuron_count",
             "lif_steps", "root_note", "scale_name", "heterogeneity",
+            "inhibitory_ratio", "inhibitory_gain", "delay_spread_steps", "delay_jitter",
         }
 
         knob_controls = {
@@ -151,11 +158,14 @@ class MIDIHandler:
             "aftertouch_target", "topology_index", "neuron_count",
             "lif_steps", "root_note", "scale_name",
         }
-        pad_controls = {"root_note", "scale_name", "lif_steps", "topology_index", "neuron_count"}
+        pad_controls = {
+            "root_note", "scale_name", "lif_steps", "topology_index", "neuron_count",
+            "heterogeneity", "inhibitory_ratio", "delay_spread_steps",
+        }
         aftertouch_controls = {
             "threshold", "tau", "drive_n", "tempo", "quantization_strength",
             "swing_amount", "master_volume", "mod_index_scale", "active_pairs", "decay_speed",
-            "heterogeneity",
+            "heterogeneity", "inhibitory_ratio", "inhibitory_gain", "delay_spread_steps", "delay_jitter",
         }
 
         exposed = knob_controls | pad_controls | aftertouch_controls
@@ -428,10 +438,33 @@ class MIDIHandler:
             self._network.set_heterogeneity(v)
             self._sync_heterogeneity_cfg()
             print(f"[MIDI] Heterogeneity → {v:.2f}")
-        # funcs 12-15 spare
+        elif func == 12:  # inhibitory ratio down
+            v = max(0.0, float(self._cfg.get("inhibitory_ratio", 0.18)) - 0.04)
+            self._network.set_inhibitory_ratio(v)
+            self._sync_phase2_cfg()
+            print(f"[MIDI] Inhibitory ratio → {v:.2f}")
+        elif func == 13:  # inhibitory ratio up
+            v = min(0.9, float(self._cfg.get("inhibitory_ratio", 0.18)) + 0.04)
+            self._network.set_inhibitory_ratio(v)
+            self._sync_phase2_cfg()
+            print(f"[MIDI] Inhibitory ratio → {v:.2f}")
+        elif func == 14:  # delay spread down
+            v = max(0, int(self._cfg.get("delay_spread_steps", 0)) - 1)
+            self._network.set_delay_spread_steps(v)
+            self._sync_phase2_cfg()
+            print(f"[MIDI] Delay spread → {v}")
+        elif func == 15:  # delay spread up
+            v = min(12, int(self._cfg.get("delay_spread_steps", 0)) + 1)
+            self._network.set_delay_spread_steps(v)
+            self._sync_phase2_cfg()
+            print(f"[MIDI] Delay spread → {v}")
 
     def _sync_heterogeneity_cfg(self) -> None:
         state = self._network.heterogeneity_state()
+        self._cfg.update(state)
+
+    def _sync_phase2_cfg(self) -> None:
+        state = self._network.phase2_state()
         self._cfg.update(state)
 
     # ── Aftertouch handler ────────────────────────────────────────────────────
@@ -465,3 +498,15 @@ class MIDIHandler:
         elif t == "heterogeneity":
             self._network.set_heterogeneity(n)
             self._sync_heterogeneity_cfg()
+        elif t == "inhibitory_ratio":
+            self._network.set_inhibitory_ratio(n * 0.9)
+            self._sync_phase2_cfg()
+        elif t == "inhibitory_gain":
+            self._network.set_inhibitory_gain(n * 3.0)
+            self._sync_phase2_cfg()
+        elif t == "delay_spread":
+            self._network.set_delay_spread_steps(round(n * 12.0))
+            self._sync_phase2_cfg()
+        elif t == "delay_jitter":
+            self._network.set_delay_jitter(n)
+            self._sync_phase2_cfg()

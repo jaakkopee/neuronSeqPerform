@@ -8,7 +8,9 @@ neuron counts/topologies inspired by vjay_ace:
 
 from __future__ import annotations
 
+from collections import deque
 import math
+import threading
 import numpy as np
 
 from config import ROWS as SYNTH_ROWS, COLS as SYNTH_COLS
@@ -43,6 +45,7 @@ class LIFNetwork:
         topology_index: int = 0,
     ):
         self.cols = max(4, int(cols))
+        self._state_lock = threading.RLock()
         self.neuron_count = int(neuron_count) if neuron_count is not None else max(512, rows * cols)
         self.topology_index = int(np.clip(topology_index, 0, len(TOPOLOGY_NAMES) - 1))
 
@@ -59,6 +62,14 @@ class LIFNetwork:
         self._tau_spread = 0.0
         self._refractory_spread = 0.0
         self._drive_spread = 0.0
+
+        # Phase 2 E/I and delay controls.
+        self._inhibitory_ratio = 0.18
+        self._inhibitory_gain = 1.0
+        self._excitatory_scale = 1.0
+        self._inhibitory_scale = 1.0
+        self._delay_spread_steps = 0
+        self._delay_jitter = 0.0
 
         self._native = None
         if _native_ok:
@@ -81,6 +92,11 @@ class LIFNetwork:
         self._h_tau = np.zeros(self.neuron_count, dtype=np.float32)
         self._h_refractory = np.zeros(self.neuron_count, dtype=np.float32)
         self._h_drive = np.zeros(self.neuron_count, dtype=np.float32)
+        self._native_drive_offsets = np.zeros(self.neuron_count, dtype=np.float32)
+        self._inhibitory_mask = np.zeros(self.neuron_count, dtype=bool)
+        self._delay_steps = np.zeros(self.neuron_count, dtype=np.int16)
+        self._spike_history: deque[np.ndarray] = deque(maxlen=1)
+        self._zero_spikes = np.zeros(self.neuron_count, dtype=np.float32)
 
         # Fallback-state fields.
         self.v = np.zeros(self.neuron_count, np.float32)
@@ -97,38 +113,50 @@ class LIFNetwork:
 
         if self._native is None:
             self._seed_fallback_state()
-            self._rebuild_fallback_weights()
+        self._rebuild_fallback_weights()
 
         self._regenerate_heterogeneity_profiles()
+        self._regenerate_population_roles()
+        self._regenerate_delay_profile()
+        self._reset_spike_history()
         self._apply_heterogeneity()
 
     # ---------------------------------------------------------------------
     # Public API used by the rest of the app
     # ---------------------------------------------------------------------
     def step(self) -> np.ndarray:
-        if self._native is not None:
-            self._native.step()
-            self._spikes = self._native.get_spikes() > 0.5
-            self._potentials = self._native.get_potentials().astype(np.float32)
-            self.rows, self.cols = self._spikes.shape
-            self.neuron_count = int(self._native.neuron_count())
+        with self._state_lock:
+            if self._native is not None:
+                delayed_src = self._delayed_source_activity()
+                syn_overlay = self.weights @ delayed_src
+                drive_vec = np.clip(self._native_drive_offsets + syn_overlay, -2.5, 3.5).astype(np.float32)
+                self._native.set_external_drive(np.ascontiguousarray(drive_vec, dtype=np.float32))
+
+                self._native.step()
+                self._spikes = self._native.get_spikes() > 0.5
+                self._potentials = self._native.get_potentials().astype(np.float32)
+                self.rows, self.cols = self._spikes.shape
+                self.neuron_count = int(self._native.neuron_count())
+                self._push_spike_history(self._spikes.reshape(-1)[: self.neuron_count])
+                return self._spikes
+
+            delayed_src = self._delayed_source_activity()
+            i_syn = self.weights @ delayed_src
+            i_tot = i_syn + self.external_drive
+
+            in_ref = self.refractory > 0.0
+            dv = (-(self.v - self.v_rest) + i_tot) * (self.dt / np.maximum(self.tau, 1e-4))
+            self.v += dv
+            self.v[in_ref] = self.v_rest[in_ref]
+
+            self.spikes = self.v >= self.v_thresh
+            self.v[self.spikes] = self.v_rest[self.spikes]
+            self.refractory[self.spikes] = self.refractory_t[self.spikes]
+            self.refractory = np.maximum(0.0, self.refractory - self.dt)
+            self._push_spike_history(self.spikes)
+
+            self._pack_fallback_views()
             return self._spikes
-
-        i_syn = self.weights @ self.spikes.astype(np.float32)
-        i_tot = i_syn + self.external_drive
-
-        in_ref = self.refractory > 0.0
-        dv = (-(self.v - self.v_rest) + i_tot) * (self.dt / np.maximum(self.tau, 1e-4))
-        self.v += dv
-        self.v[in_ref] = self.v_rest[in_ref]
-
-        self.spikes = self.v >= self.v_thresh
-        self.v[self.spikes] = self.v_rest[self.spikes]
-        self.refractory[self.spikes] = self.refractory_t[self.spikes]
-        self.refractory = np.maximum(0.0, self.refractory - self.dt)
-
-        self._pack_fallback_views()
-        return self._spikes
 
     def get_potentials(self) -> np.ndarray:
         if self._native is not None:
@@ -181,8 +209,7 @@ class LIFNetwork:
         self._weight_scale = v
         if self._native is not None:
             self._native.set_weight_scale(v)
-            return
-        self.weights = self._base_weights * v
+        self._refresh_effective_weights()
 
     def set_global_drive(self, value: float) -> None:
         # Keep MIDI semantics: normalized 0..1 mapped to a wider LIF drive range.
@@ -204,7 +231,6 @@ class LIFNetwork:
     def randomize_weights(self) -> None:
         if self._native is not None:
             self._native.randomize_weights()
-            return
         self._rebuild_fallback_weights()
 
     def reset_state(self) -> None:
@@ -213,19 +239,27 @@ class LIFNetwork:
             self._native.step()
             self._spikes = self._native.get_spikes() > 0.5
             self._potentials = self._native.get_potentials().astype(np.float32)
+            self._reset_spike_history()
+            self._push_spike_history(self._spikes.reshape(-1)[: self.neuron_count])
             return
-        self.v[:] = np.random.uniform(0.02, 0.22, self.neuron_count).astype(np.float32)
+        self._seed_fallback_state()
         self.refractory[:] = 0.0
         self.spikes[:] = False
+        self._reset_spike_history()
         self._pack_fallback_views()
 
     def set_topology_index(self, index: int) -> None:
-        idx = int(np.clip(index, 0, len(TOPOLOGY_NAMES) - 1))
-        self.topology_index = idx
-        if self._native is not None:
-            self._native.set_topology(idx)
-            return
-        self._rebuild_fallback_weights()
+        with self._state_lock:
+            idx = int(np.clip(index, 0, len(TOPOLOGY_NAMES) - 1))
+            self.topology_index = idx
+            if self._native is not None:
+                self._native.set_topology(idx)
+            self._regenerate_heterogeneity_profiles()
+            self._regenerate_population_roles()
+            self._regenerate_delay_profile()
+            self._reset_spike_history()
+            self._rebuild_fallback_weights()
+            self._apply_heterogeneity()
 
     def cycle_topology(self, direction: int = 1) -> int:
         idx = (self.topology_index + int(np.sign(direction))) % len(TOPOLOGY_NAMES)
@@ -233,46 +267,48 @@ class LIFNetwork:
         return idx
 
     def set_neuron_count(self, count: int) -> int:
-        count = max(64, int(count))
-        self.neuron_count = count
+        with self._state_lock:
+            count = max(64, int(count))
+            self.neuron_count = count
 
-        if self._native is not None:
-            self._native.set_neuron_count(count)
-            self.rows = int(self._native.rows())
-            self.cols = int(self._native.cols())
-            self.neuron_count = int(self._native.neuron_count())
+            if self._native is not None:
+                self._native.set_neuron_count(count)
+                self.rows = int(self._native.rows())
+                self.cols = int(self._native.cols())
+                self.neuron_count = int(self._native.neuron_count())
+            else:
+                self.rows = max(1, math.ceil(self.neuron_count / self.cols))
+
             self._spikes = np.zeros((self.rows, self.cols), dtype=bool)
             self._potentials = np.zeros((self.rows, self.cols), dtype=np.float32)
             self._h_threshold = np.zeros(self.neuron_count, dtype=np.float32)
             self._h_tau = np.zeros(self.neuron_count, dtype=np.float32)
             self._h_refractory = np.zeros(self.neuron_count, dtype=np.float32)
             self._h_drive = np.zeros(self.neuron_count, dtype=np.float32)
+            self._native_drive_offsets = np.zeros(self.neuron_count, dtype=np.float32)
+            self._inhibitory_mask = np.zeros(self.neuron_count, dtype=bool)
+            self._delay_steps = np.zeros(self.neuron_count, dtype=np.int16)
+            self._zero_spikes = np.zeros(self.neuron_count, dtype=np.float32)
+
+            self.v = np.zeros(self.neuron_count, np.float32)
+            self.v_rest = np.zeros(self.neuron_count, np.float32)
+            self.v_thresh = np.full(self.neuron_count, self._threshold, np.float32)
+            self.tau = np.full(self.neuron_count, self._tau, np.float32)
+            self.refractory = np.zeros(self.neuron_count, np.float32)
+            self.refractory_t = np.full(self.neuron_count, self._base_refractory_ms, np.float32)
+            self.spikes = np.zeros(self.neuron_count, dtype=bool)
+            self.external_drive = np.full(self.neuron_count, self._global_drive, np.float32)
+            self._base_weights = np.zeros((self.neuron_count, self.neuron_count), np.float32)
+            self.weights = np.zeros((self.neuron_count, self.neuron_count), np.float32)
+            if self._native is None:
+                self._seed_fallback_state()
+            self._rebuild_fallback_weights()
             self._regenerate_heterogeneity_profiles()
+            self._regenerate_population_roles()
+            self._regenerate_delay_profile()
+            self._reset_spike_history()
             self._apply_heterogeneity()
             return self.neuron_count
-
-        self.rows = max(1, math.ceil(self.neuron_count / self.cols))
-        self.v = np.zeros(self.neuron_count, np.float32)
-        self.v_rest = np.zeros(self.neuron_count, np.float32)
-        self.v_thresh = np.full(self.neuron_count, self._threshold, np.float32)
-        self.tau = np.full(self.neuron_count, self._tau, np.float32)
-        self.refractory = np.zeros(self.neuron_count, np.float32)
-        self.refractory_t = np.full(self.neuron_count, self._base_refractory_ms, np.float32)
-        self.spikes = np.zeros(self.neuron_count, dtype=bool)
-        self.external_drive = np.full(self.neuron_count, self._global_drive, np.float32)
-        self._base_weights = np.zeros((self.neuron_count, self.neuron_count), np.float32)
-        self.weights = np.zeros((self.neuron_count, self.neuron_count), np.float32)
-        self._spikes = np.zeros((self.rows, self.cols), dtype=bool)
-        self._potentials = np.zeros((self.rows, self.cols), dtype=np.float32)
-        self._h_threshold = np.zeros(self.neuron_count, dtype=np.float32)
-        self._h_tau = np.zeros(self.neuron_count, dtype=np.float32)
-        self._h_refractory = np.zeros(self.neuron_count, dtype=np.float32)
-        self._h_drive = np.zeros(self.neuron_count, dtype=np.float32)
-        self._seed_fallback_state()
-        self._rebuild_fallback_weights()
-        self._regenerate_heterogeneity_profiles()
-        self._apply_heterogeneity()
-        return self.neuron_count
 
     def nudge_neuron_count_step(self, delta: int) -> int:
         current = self.neuron_count
@@ -309,11 +345,16 @@ class LIFNetwork:
         self._apply_heterogeneity()
 
     def set_heterogeneity_seed(self, seed: int) -> None:
-        self._heterogeneity_seed = int(seed)
-        self._regenerate_heterogeneity_profiles()
-        self._seed_fallback_state()
-        self._rebuild_fallback_weights()
-        self._apply_heterogeneity()
+        with self._state_lock:
+            self._heterogeneity_seed = int(seed)
+            self._regenerate_heterogeneity_profiles()
+            self._regenerate_population_roles()
+            self._regenerate_delay_profile()
+            self._reset_spike_history()
+            if self._native is None:
+                self._seed_fallback_state()
+            self._rebuild_fallback_weights()
+            self._apply_heterogeneity()
 
     def heterogeneity_state(self) -> dict:
         return {
@@ -323,6 +364,46 @@ class LIFNetwork:
             "tau_spread": float(self._tau_spread),
             "refractory_spread": float(self._refractory_spread),
             "drive_spread": float(self._drive_spread),
+        }
+
+    def set_inhibitory_ratio(self, value: float) -> None:
+        with self._state_lock:
+            self._inhibitory_ratio = float(np.clip(value, 0.0, 0.9))
+            self._regenerate_population_roles()
+            self._refresh_effective_weights()
+
+    def set_inhibitory_gain(self, value: float) -> None:
+        self._inhibitory_gain = float(np.clip(value, 0.0, 3.0))
+        self._refresh_effective_weights()
+
+    def set_excitatory_scale(self, value: float) -> None:
+        self._excitatory_scale = float(np.clip(value, 0.0, 3.0))
+        self._refresh_effective_weights()
+
+    def set_inhibitory_scale(self, value: float) -> None:
+        self._inhibitory_scale = float(np.clip(value, 0.0, 3.0))
+        self._refresh_effective_weights()
+
+    def set_delay_spread_steps(self, value: int) -> None:
+        with self._state_lock:
+            self._delay_spread_steps = int(np.clip(value, 0, 12))
+            self._regenerate_delay_profile()
+            self._reset_spike_history()
+
+    def set_delay_jitter(self, value: float) -> None:
+        with self._state_lock:
+            self._delay_jitter = float(np.clip(value, 0.0, 1.0))
+            self._regenerate_delay_profile()
+            self._reset_spike_history()
+
+    def phase2_state(self) -> dict:
+        return {
+            "inhibitory_ratio": float(self._inhibitory_ratio),
+            "inhibitory_gain": float(self._inhibitory_gain),
+            "excitatory_scale": float(self._excitatory_scale),
+            "inhibitory_scale": float(self._inhibitory_scale),
+            "delay_spread_steps": int(self._delay_spread_steps),
+            "delay_jitter": float(self._delay_jitter),
         }
 
     # ------------------------------------------------------------------
@@ -352,6 +433,97 @@ class LIFNetwork:
         self._h_tau = make_axis()
         self._h_refractory = make_axis()
         self._h_drive = make_axis()
+
+    def _regenerate_population_roles(self) -> None:
+        n = self.neuron_count
+        if n <= 0:
+            self._inhibitory_mask = np.zeros(0, dtype=bool)
+            return
+
+        n_inh = int(round(self._inhibitory_ratio * n))
+        n_inh = int(np.clip(n_inh, 0, max(0, n - 1)))
+        rng = np.random.default_rng(self._heterogeneity_seed + n * 29 + self.topology_index * 211)
+        mask = np.zeros(n, dtype=bool)
+        if n_inh > 0:
+            idx = rng.permutation(n)[:n_inh]
+            mask[idx] = True
+        self._inhibitory_mask = mask
+
+    def _regenerate_delay_profile(self) -> None:
+        n = self.neuron_count
+        if n <= 0:
+            self._delay_steps = np.zeros(0, dtype=np.int16)
+            return
+
+        spread = int(max(0, self._delay_spread_steps))
+        if spread == 0:
+            self._delay_steps = np.zeros(n, dtype=np.int16)
+            return
+
+        rng = np.random.default_rng(self._heterogeneity_seed + n * 31 + self.topology_index * 223)
+        base = rng.integers(0, spread + 1, size=n).astype(np.float32)
+        if self._delay_jitter > 0.0:
+            noise = rng.normal(0.0, self._delay_jitter * max(1.0, spread * 0.75), size=n).astype(np.float32)
+            base = np.rint(base + noise)
+        self._delay_steps = np.clip(base, 0, spread).astype(np.int16)
+
+    def _reset_spike_history(self) -> None:
+        hist_len = max(1, int(self._delay_spread_steps) + 1)
+        self._spike_history = deque(maxlen=hist_len)
+        zero = np.zeros(self.neuron_count, dtype=np.float32)
+        self._zero_spikes = zero
+        for _ in range(hist_len):
+            self._spike_history.append(zero.copy())
+
+    def _delayed_source_activity(self) -> np.ndarray:
+        if self.neuron_count <= 0:
+            return np.zeros(0, dtype=np.float32)
+
+        expected_len = max(1, int(self._delay_spread_steps) + 1)
+        if len(self._spike_history) == 0 or self._spike_history.maxlen != expected_len:
+            self._reset_spike_history()
+
+        if expected_len == 1:
+            return self._spike_history[-1]
+
+        out = np.zeros(self.neuron_count, dtype=np.float32)
+        hist = list(self._spike_history)
+        for delay in range(expected_len):
+            mask = self._delay_steps == delay
+            if not np.any(mask):
+                continue
+            src = hist[-1 - delay]
+            out[mask] = src[mask]
+        return out
+
+    def _push_spike_history(self, spikes: np.ndarray) -> None:
+        if self.neuron_count <= 0:
+            return
+        arr = np.asarray(spikes, dtype=np.float32).reshape(-1)
+        if arr.size < self.neuron_count:
+            tmp = np.zeros(self.neuron_count, dtype=np.float32)
+            tmp[: arr.size] = arr
+            arr = tmp
+        elif arr.size > self.neuron_count:
+            arr = arr[: self.neuron_count]
+        self._spike_history.append(arr.copy())
+
+    def _refresh_effective_weights(self) -> None:
+        if self.neuron_count <= 0:
+            self.weights = np.zeros((0, 0), dtype=np.float32)
+            return
+
+        if self._inhibitory_mask.shape[0] != self.neuron_count:
+            self._regenerate_population_roles()
+
+        src_scale = np.where(
+            self._inhibitory_mask,
+            -self._inhibitory_scale * self._inhibitory_gain,
+            self._excitatory_scale,
+        ).astype(np.float32)
+
+        scaled = (self._base_weights * self._weight_scale).astype(np.float32)
+        self.weights = scaled * src_scale[np.newaxis, :]
 
     def _apply_heterogeneity(self) -> None:
         if self.neuron_count <= 0:
@@ -385,8 +557,7 @@ class LIFNetwork:
                 -0.20 * self._tau_spread * self._h_tau
                 -0.15 * self._refractory_spread * self._h_refractory
             ).astype(np.float32)
-            drive_offsets = np.clip(drive_offsets, -1.5, 1.5).astype(np.float32)
-            self._native.set_external_drive(np.ascontiguousarray(drive_offsets, dtype=np.float32))
+            self._native_drive_offsets = np.clip(drive_offsets, -1.5, 1.5).astype(np.float32)
             return
 
         self.v_thresh[:] = thresh_vec
@@ -441,7 +612,7 @@ class LIFNetwork:
                     w[i, int(rng.integers(0, n))] = float(rng.uniform(0.05, 0.22))
 
         self._base_weights = w
-        self.weights = w * self._weight_scale
+        self._refresh_effective_weights()
 
     def _pack_fallback_views(self) -> None:
         padded = self.rows * self.cols
