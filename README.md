@@ -128,6 +128,17 @@ python main.py
 
 A pygame window opens showing the 8 × 16 neuron/operator matrix. Cells brighten on spike. The status bar at the bottom shows the active topology, neuron count, current scale, and the last received MIDI message.
 
+Window and session controls:
+
+| Key | Action |
+|---|---|
+| F11 or Alt+Enter | Toggle fullscreen |
+| Esc | Exit fullscreen (if active), otherwise quit |
+| 0–9 | Launch scene slot 0–9 |
+| Shift+0–9 | Save current state to scene slot 0–9 |
+| A | Toggle anti-lock controller |
+| - / = | Anti-lock strength down/up |
+
 Quit with the **window close button** or **Escape**.
 
 ---
@@ -151,10 +162,10 @@ The controller is divided into **three knob banks (A/B/C)** and **three pad bank
 
 | Knob | CC | Parameter | Range | Notes |
 |---|---|---|---|---|
-| K1 | 16 | Firing Threshold | 0.3 – 2.0 | Lower = more spikes |
+| K1 | 16 | Firing Threshold | 0.1 – 2.0 | Lower = more spikes |
 | K2 | 17 | Time Constant τ | 5 – 100 ms | Shorter = faster integration |
 | K3 | 18 | Synaptic Weight Scale | 0.0 – 3.0 | Gain of inter-neuron coupling |
-| K4 | 19 | Global External Drive | 0.0 – 1.0 | Tonic excitation of all neurons |
+| K4 | 19 | Global External Drive | 0.0 – 1.0 | Internally mapped to LIF drive 0.25 – 3.0 |
 | K5 | 20 | Swing Amount | 0.0 – 0.5 | Odd-step delay fraction |
 | K6 | 21 | FM Ratio Scale | 0.5 – 2.0 | Harmonic ↔ inharmonic timbre |
 
@@ -162,7 +173,7 @@ The controller is divided into **three knob banks (A/B/C)** and **three pad bank
 
 | Knob | CC | Parameter | Range / Options | Notes |
 |---|---|---|---|---|
-| K1 | 22 | Aftertouch Target | 0–9 (see below) | Routes channel pressure to a parameter |
+| K1 | 22 | Aftertouch Target | 0–22 (see below) | Routes channel pressure to a parameter |
 | K2 | 23 | LIF Topology | 0–4 (direct select) | Ring / FullyConnected / Feedforward / SparseRandom / SmallWorld |
 | K3 | 24 | Neuron Count | 0–5 (index) | Steps: 128 / 256 / 512 / 1024 / 2048 / 4096 |
 | K4 | 25 | LIF Steps per Tick | 1 – 64 | Micro-steps per sequencer step |
@@ -183,6 +194,19 @@ The controller is divided into **three knob banks (A/B/C)** and **three pad bank
 | 7 | FM Modulation Index |
 | 8 | Active Operator Pairs |
 | 9 | Envelope Decay Speed |
+| 10 | Heterogeneity |
+| 11 | Inhibitory Ratio |
+| 12 | Inhibitory Gain |
+| 13 | Delay Spread |
+| 14 | Delay Jitter |
+| 15 | Adaptation Strength |
+| 16 | Adaptation Decay |
+| 17 | Noise Amount |
+| 18 | Noise Color (white/pink split at 0.5) |
+| 19 | Spatial Noise |
+| 20 | Anti-lock Enable |
+| 21 | Anti-lock Strength |
+| 22 | Scene Morph Time (0–8 s) |
 
 ### Pad Bank A — Root Note Selection (notes 36–51, channel 10)
 
@@ -224,11 +248,26 @@ Each pad selects one of the 10 available scales:
 | 8 | 75 | Next topology |
 | 9 | 76 | Decrease neuron count (one step) |
 | 10 | 77 | Increase neuron count (one step) |
-| 11–16 | 78–83 | — (unassigned) |
+| 11 | 78 | Heterogeneity down |
+| 12 | 79 | Heterogeneity up |
+| 13 | 80 | Inhibitory ratio down |
+| 14 | 81 | Inhibitory ratio up |
+| 15 | 82 | Delay spread down |
+| 16 | 83 | Delay spread up |
 
 ### Channel Pressure (Aftertouch)
 
 Applies to whichever parameter is currently selected by **CC 22**. Useful for expressive real-time modulation without occupying a knob — press harder on any pad to sweep the target parameter.
+
+Noise parameters are controlled through this route:
+
+| Aftertouch target | Effect |
+|---|---|
+| noise_amount | Continuous 0.0–1.0 |
+| noise_color | <0.5 = white, >=0.5 = pink |
+| spatial_noise | Continuous 0.0–1.0 |
+
+Note: with anti-lock enabled, the controller may also nudge `noise_amount` during collapse recovery.
 
 ---
 
