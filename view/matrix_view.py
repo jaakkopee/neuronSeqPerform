@@ -348,7 +348,7 @@ class MatrixView:
 
     def _draw_knob_cheatsheet(self, x: int, y: int, w: int, h: int, kind: str, bank: str, slot: int) -> None:
         banks = ["A", "B", "C"]
-        sel_y_nudge = 4
+        sel_y_nudge = 6
         row_gap = 4
         row_h = max(8, int((h - row_gap * 2) / 3))
         for ri, b in enumerate(banks):
