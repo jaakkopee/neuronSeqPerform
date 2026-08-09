@@ -140,7 +140,7 @@ class LIFNetwork:
         with self._state_lock:
             if self._native is not None:
                 delayed_src = self._delayed_source_activity()
-                syn_overlay = self.weights @ delayed_src
+                syn_overlay = self._compute_syn_overlay(delayed_src)
                 runtime_term = self._phase3_runtime_term()
                 drive_vec = np.clip(self._native_drive_offsets + syn_overlay + runtime_term, -2.5, 3.5).astype(np.float32)
                 self._native.set_external_drive(np.ascontiguousarray(drive_vec, dtype=np.float32))
@@ -155,7 +155,7 @@ class LIFNetwork:
                 return self._spikes
 
             delayed_src = self._delayed_source_activity()
-            i_syn = self.weights @ delayed_src
+            i_syn = self._compute_syn_overlay(delayed_src)
             runtime_term = self._phase3_runtime_term()
             i_tot = i_syn + self.external_drive + runtime_term
 
@@ -542,6 +542,8 @@ class LIFNetwork:
         expected_len = max(1, int(self._delay_spread_steps) + 1)
         if len(self._spike_history) == 0 or self._spike_history.maxlen != expected_len:
             self._reset_spike_history()
+        elif self._spike_history[-1].shape[0] != self.neuron_count:
+            self._reset_spike_history()
 
         if expected_len == 1:
             return self._spike_history[-1]
@@ -553,8 +555,29 @@ class LIFNetwork:
             if not np.any(mask):
                 continue
             src = hist[-1 - delay]
+            if src.shape[0] != self.neuron_count:
+                self._reset_spike_history()
+                return self._spike_history[-1]
             out[mask] = src[mask]
         return out
+
+    def _compute_syn_overlay(self, delayed_src: np.ndarray) -> np.ndarray:
+        """Shape-safe synaptic overlay used by both native and fallback stepping."""
+        n = int(self.neuron_count)
+        if n <= 0:
+            return np.zeros(0, dtype=np.float32)
+
+        if self.weights.shape != (n, n) or self._base_weights.shape != (n, n):
+            self._rebuild_fallback_weights()
+
+        src = np.asarray(delayed_src, dtype=np.float32).reshape(-1)
+        if src.size != n:
+            fixed = np.zeros(n, dtype=np.float32)
+            ncopy = min(n, src.size)
+            fixed[:ncopy] = src[:ncopy]
+            src = fixed
+
+        return self.weights @ src
 
     def _push_spike_history(self, spikes: np.ndarray) -> None:
         if self.neuron_count <= 0:

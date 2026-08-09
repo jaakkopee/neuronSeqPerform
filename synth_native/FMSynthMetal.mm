@@ -90,6 +90,7 @@ struct FMSynth::Impl {
     // ── synthesis state ───────────────────────────────────────────────────────
     float phases[COLS][NUM_OPS]{};    // [col][op]  current phase (radians)
     float env[NUM_OPS][COLS]{};       // [op][col]  amplitude envelope 0-1
+    float env_target[NUM_OPS][COLS]{}; // [op][col] trigger target 0-1
     float voice_gain[COLS]{};         // per-voice crossfade gain
     bool  voice_active[COLS]{};
 
@@ -105,8 +106,12 @@ struct FMSynth::Impl {
     float mod_index_scale = 0.25f;
     float per_buf_carrier = 0.9286f;
     float per_buf_mod     = 0.8700f;
+    float env_attack_carrier = 0.35f;
+    float env_attack_mod     = 0.45f;
     int   active_pairs    = 2;
     float master_volume   = 0.5f;
+    float last_output_sample = 0.0f;
+    int   output_declick_samples = 24;
 
     void init_metal();
     void recompute_freqs();
@@ -207,7 +212,7 @@ void FMSynth::trigger_and_activate(const float* spikes_float, int col) {
     for (int i = 0; i < COLS; ++i)
         impl_->voice_active[i] = (i == col);
     for (int op = 0; op < NUM_OPS; ++op)
-        impl_->env[op][col] = spikes_float[op * COLS + col];
+        impl_->env_target[op][col] = std::clamp(spikes_float[op * COLS + col], 0.0f, 1.0f);
 }
 
 void FMSynth::set_active_step(int step) {
@@ -241,6 +246,8 @@ void FMSynth::generate(float* output, int frames) {
 
         // ── 1. Build VoiceParams for the GPU (CPU, ~5 µs) ────────────────────
         auto* vp_arr = static_cast<VoiceParams*>(d.voicesBuf.contents);
+        const float env_release_carrier = std::clamp(1.0f - d.per_buf_carrier, 0.001f, 1.0f);
+        const float env_release_mod     = std::clamp(1.0f - d.per_buf_mod, 0.001f, 1.0f);
 
         for (int col = 0; col < COLS; ++col) {
             VoiceParams& vp = vp_arr[col];
@@ -269,8 +276,12 @@ void FMSynth::generate(float* output, int frames) {
 
                 const float ec0 = d.env[c_op][col];
                 const float em0 = d.env[m_op][col];
-                const float ec1 = ec0 * d.per_buf_carrier;
-                const float em1 = em0 * d.per_buf_mod;
+                const float tc  = d.env_target[c_op][col];
+                const float tm  = d.env_target[m_op][col];
+                const float ec_alpha = (tc > ec0) ? d.env_attack_carrier : env_release_carrier;
+                const float em_alpha = (tm > em0) ? d.env_attack_mod : env_release_mod;
+                const float ec1 = ec0 + (tc - ec0) * ec_alpha;
+                const float em1 = em0 + (tm - em0) * em_alpha;
 
                 pp.level_start = d.levels[col][c_op] * ec0;
                 pp.level_end   = d.levels[col][c_op] * ec1;
@@ -322,6 +333,21 @@ void FMSynth::generate(float* output, int frames) {
         std::memcpy(output,
                     d.outputBuf.contents,
                     static_cast<std::size_t>(frames) * sizeof(float));
+
+        // De-click envelope at audio block boundaries to suppress zipper clicks.
+        if (frames > 0) {
+            const int n = std::min(frames, std::max(1, d.output_declick_samples));
+            if (n > 1) {
+                const float prev = d.last_output_sample;
+                for (int i = 0; i < n; ++i) {
+                    const float t = static_cast<float>(i) / static_cast<float>(n - 1);
+                    output[i] = prev + (output[i] - prev) * t;
+                }
+            } else {
+                output[0] = 0.5f * output[0] + 0.5f * d.last_output_sample;
+            }
+            d.last_output_sample = output[frames - 1];
+        }
     }
 }
 

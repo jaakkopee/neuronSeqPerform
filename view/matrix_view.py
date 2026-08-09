@@ -348,6 +348,7 @@ class MatrixView:
 
     def _draw_knob_cheatsheet(self, x: int, y: int, w: int, h: int, kind: str, bank: str, slot: int) -> None:
         banks = ["A", "B", "C"]
+        sel_y_nudge = 4
         row_gap = 4
         row_h = max(8, int((h - row_gap * 2) / 3))
         for ri, b in enumerate(banks):
@@ -358,13 +359,14 @@ class MatrixView:
             for ci, (cc, lbl) in enumerate(items):
                 rx = x + ci * (tile_w + gap)
                 selected = (kind == "cc" and bank == b and slot == ci)
+                draw_ry = ry + (sel_y_nudge if selected else 0)
                 fill = (36, 54, 86) if selected else (14, 22, 42)
                 border = STEP_HIGHLIGHT if selected else (50, 72, 112)
-                pygame.draw.rect(self._screen, fill, (rx, ry, tile_w, row_h), border_radius=4)
-                pygame.draw.rect(self._screen, border, (rx, ry, tile_w, row_h), width=1, border_radius=4)
+                pygame.draw.rect(self._screen, fill, (rx, draw_ry, tile_w, row_h), border_radius=4)
+                pygame.draw.rect(self._screen, border, (rx, draw_ry, tile_w, row_h), width=1, border_radius=4)
                 txt = f"{b}{ci+1} CC{cc} {lbl}"
                 surf = self._fn_small.render(txt, True, TEXT_MAIN if selected else TEXT_SUB)
-                self._screen.blit(surf, (rx + 4, ry + max(1, row_h // 2 - 6)))
+                self._screen.blit(surf, (rx + 4, draw_ry + max(1, row_h // 2 - 6)))
 
     def _draw_pad_cheatsheet(self, x: int, y: int, w: int, h: int, kind: str, bank: str, slot: int) -> None:
         rows = [
