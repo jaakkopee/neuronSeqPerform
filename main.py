@@ -119,6 +119,8 @@ def main() -> None:
         "noteon_flash":            {},   # note -> monotonic timestamp
         "synchrony_index":         0.0,
         "spike_entropy":           0.0,
+        "active_ratio":            0.0,
+        "active_ratio_ma":         0.0,
     }
 
     # ── model ──────────────────────────────────────────────────────────────────
@@ -171,6 +173,7 @@ def main() -> None:
     synth.set_active_step(current_step)
     last_step_time = time.monotonic()
     sync_history   = deque(maxlen=32)
+    active_ratio_history = deque(maxlen=16)
 
     # ── main loop ──────────────────────────────────────────────────────────────
     running = True
@@ -218,6 +221,11 @@ def main() -> None:
             sync_history.append(synth_spikes.reshape(-1).astype(np.float32, copy=False))
             config_state["synchrony_index"] = _compute_synchrony_index(sync_history)
             config_state["spike_entropy"] = _compute_spike_entropy(sync_history)
+
+            active_ratio = float(np.mean(synth_spikes.astype(np.float32, copy=False)))
+            active_ratio_history.append(active_ratio)
+            config_state["active_ratio"] = active_ratio
+            config_state["active_ratio_ma"] = float(np.mean(active_ratio_history))
 
             # ── atomically activate voice + gate env from spikes ──────────────
             synth.trigger_and_activate(synth_spikes, current_step)

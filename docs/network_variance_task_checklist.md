@@ -25,7 +25,7 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 - Deliverable: entropy metric from pooled spike grid over rolling window.
 - Done when: entropy lowers in unison states and rises in varied states.
 
-- [ ] NV-0003 Add active-neuron ratio metric
+- [x] NV-0003 Add active-neuron ratio metric
 - Scope: [main.py](main.py)
 - Deliverable: fraction of active cells per step and short moving average.
 - Done when: both raw and smoothed values are available for display and logging.
