@@ -16,6 +16,7 @@ MIDI runs in a separate daemon thread.
 
 import sys
 import time
+from collections import deque
 import numpy as np
 
 import sounddevice as sd
@@ -44,6 +45,46 @@ def _build_initial_freqs(root_midi: int = 60, scale_name: str = "major") -> list
         semitone = scale[degree] + octave * 12
         freqs.append(root_freq * (2.0 ** (semitone / 12.0)))
     return freqs
+
+
+def _compute_synchrony_index(spike_history: deque[np.ndarray]) -> float:
+    """Return a bounded synchrony score in [0, 1] from recent spike frames.
+
+    Uses a population-coupling metric:
+      S = var_t(mean_n x_tn) / mean_n(var_t(x_tn))
+    where x_tn is binary activity for neuron n at step t.
+    """
+    if len(spike_history) < 2:
+        return 0.0
+
+    x = np.stack(spike_history, axis=0).astype(np.float32, copy=False)  # (T, N)
+    pop_rate = x.mean(axis=1)
+    pop_var = float(np.var(pop_rate))
+    mean_neuron_var = float(np.mean(np.var(x, axis=0)))
+
+    if mean_neuron_var <= 1e-8:
+        # Degenerate case (flat activity): use instant unanimity as fallback.
+        p = float(x[-1].mean())
+        return float(np.clip(1.0 - 4.0 * p * (1.0 - p), 0.0, 1.0))
+
+    return float(np.clip(pop_var / mean_neuron_var, 0.0, 1.0))
+
+
+def _compute_spike_entropy(spike_history: deque[np.ndarray]) -> float:
+    """Return normalized binary entropy in [0, 1] over a rolling spike window.
+
+    For each pooled-cell channel n, estimate firing probability p_n over time and
+    compute H(p_n). The reported metric is mean_n H(p_n), where H is base-2
+    binary entropy with maximum 1 bit at p_n = 0.5.
+    """
+    if len(spike_history) < 2:
+        return 0.0
+
+    x = np.stack(spike_history, axis=0).astype(np.float32, copy=False)  # (T, N)
+    p = np.mean(x, axis=0)
+    p = np.clip(p, 1e-6, 1.0 - 1e-6)
+    h = -(p * np.log2(p) + (1.0 - p) * np.log2(1.0 - p))
+    return float(np.clip(np.mean(h), 0.0, 1.0))
 
 
 # ── main ───────────────────────────────────────────────────────────────────────
@@ -76,6 +117,8 @@ def main() -> None:
         "controller_coverage_ok": False,
         "controller_coverage_missing": [],
         "noteon_flash":            {},   # note -> monotonic timestamp
+        "synchrony_index":         0.0,
+        "spike_entropy":           0.0,
     }
 
     # ── model ──────────────────────────────────────────────────────────────────
@@ -127,6 +170,7 @@ def main() -> None:
     current_step   = 0
     synth.set_active_step(current_step)
     last_step_time = time.monotonic()
+    sync_history   = deque(maxlen=32)
 
     # ── main loop ──────────────────────────────────────────────────────────────
     running = True
@@ -171,6 +215,9 @@ def main() -> None:
                 continue
 
             synth_spikes = network.get_synth_spikes(ROWS, COLS)
+            sync_history.append(synth_spikes.reshape(-1).astype(np.float32, copy=False))
+            config_state["synchrony_index"] = _compute_synchrony_index(sync_history)
+            config_state["spike_entropy"] = _compute_spike_entropy(sync_history)
 
             # ── atomically activate voice + gate env from spikes ──────────────
             synth.trigger_and_activate(synth_spikes, current_step)

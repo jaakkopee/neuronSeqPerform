@@ -15,12 +15,12 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 
 ## Phase 0: Instrumentation and Baseline Capture
 
-- [ ] NV-0001 Add synchrony metric calculation
+- [x] NV-0001 Add synchrony metric calculation
 - Scope: [main.py](main.py), [model/lif_network.py](model/lif_network.py)
 - Deliverable: runtime value for synchrony index exposed in config_state.
 - Done when: synchrony value updates continuously and responds to pattern collapse.
 
-- [ ] NV-0002 Add spike entropy metric calculation
+- [x] NV-0002 Add spike entropy metric calculation
 - Scope: [main.py](main.py)
 - Deliverable: entropy metric from pooled spike grid over rolling window.
 - Done when: entropy lowers in unison states and rises in varied states.

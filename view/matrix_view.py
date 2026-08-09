@@ -193,7 +193,9 @@ class MatrixView:
             f"Scale: {cfg.get('scale_name', 'major')}   "
             f"Root: {cfg.get('root_note', 60)}   "
             f"LIF steps/tick: {cfg.get('lif_steps', 12)}   "
-            f"AT target: {cfg.get('aftertouch_target', 'threshold')}"
+            f"AT target: {cfg.get('aftertouch_target', 'threshold')}   "
+            f"Sync: {cfg.get('synchrony_index', 0.0):.2f}   "
+            f"Ent: {cfg.get('spike_entropy', 0.0):.2f}"
         )
 
         self._screen.blit(self._fn_medium.render(line1, True, TEXT_MAIN), (x + 12, y + 12))
