@@ -43,6 +43,8 @@ Note On  (MPD218 pads, channel 9)
            75  topology next
            76  neuron count down
            77  neuron count up
+           78  heterogeneity down
+           79  heterogeneity up
 
 Aftertouch / Channel Pressure
 ───────────────────────────────
@@ -65,7 +67,7 @@ class MIDIHandler:
     AFTERTOUCH_TARGETS = [
         "threshold", "tau", "drive", "tempo",
         "quantize",  "swing", "master_vol", "mod_index_scale",
-        "active_pairs", "decay_speed",
+        "active_pairs", "decay_speed", "heterogeneity",
     ]
     NEURON_COUNT_STEPS = [128, 256, 512, 1024, 2048, 4096]
     CC_LABELS = {
@@ -81,7 +83,7 @@ class MIDIHandler:
     BANK_C_PAD_LABELS = [
         "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW",
         "Topo-", "Topo+", "N--", "N++",
-        "---", "---", "---", "---", "---", "---",
+        "Het-", "Het+", "---", "---", "---", "---",
     ]
 
     # ── construction ──────────────────────────────────────────────────────────
@@ -105,6 +107,7 @@ class MIDIHandler:
         self._weight_scale = 1.0
         self._cfg.setdefault("noteon_flash", {})
         self._cfg.setdefault("last_midi", None)
+        self._sync_heterogeneity_cfg()
 
         # quick static audit: ensure all main runtime parameters are reachable
         # via knobs, pads, or aftertouch routing.
@@ -138,7 +141,7 @@ class MIDIHandler:
             "mod_index_scale", "quantization_strength", "threshold", "tau",
             "weight_scale", "drive_n", "swing_amount", "ratio_scale",
             "aftertouch_target", "topology_index", "neuron_count",
-            "lif_steps", "root_note", "scale_name",
+            "lif_steps", "root_note", "scale_name", "heterogeneity",
         }
 
         knob_controls = {
@@ -152,6 +155,7 @@ class MIDIHandler:
         aftertouch_controls = {
             "threshold", "tau", "drive_n", "tempo", "quantization_strength",
             "swing_amount", "master_volume", "mod_index_scale", "active_pairs", "decay_speed",
+            "heterogeneity",
         }
 
         exposed = knob_controls | pad_controls | aftertouch_controls
@@ -414,7 +418,21 @@ class MIDIHandler:
             ncount = self._network.nudge_neuron_count_step(+1)
             self._cfg["neuron_count"] = ncount
             print(f"[MIDI] Neurons → {ncount}")
-        # funcs 10-15 spare
+        elif func == 10:  # heterogeneity down
+            v = max(0.0, float(self._cfg.get("heterogeneity", 0.0)) - 0.08)
+            self._network.set_heterogeneity(v)
+            self._sync_heterogeneity_cfg()
+            print(f"[MIDI] Heterogeneity → {v:.2f}")
+        elif func == 11:  # heterogeneity up
+            v = min(1.0, float(self._cfg.get("heterogeneity", 0.0)) + 0.08)
+            self._network.set_heterogeneity(v)
+            self._sync_heterogeneity_cfg()
+            print(f"[MIDI] Heterogeneity → {v:.2f}")
+        # funcs 12-15 spare
+
+    def _sync_heterogeneity_cfg(self) -> None:
+        state = self._network.heterogeneity_state()
+        self._cfg.update(state)
 
     # ── Aftertouch handler ────────────────────────────────────────────────────
     def _on_aftertouch(self, value: int) -> None:
@@ -444,3 +462,6 @@ class MIDIHandler:
         elif t == "decay_speed":
             self._synth.set_decay_speed(n)
             self._cfg["decay_speed"] = n
+        elif t == "heterogeneity":
+            self._network.set_heterogeneity(n)
+            self._sync_heterogeneity_cfg()

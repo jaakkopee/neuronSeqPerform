@@ -30,7 +30,7 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 - Deliverable: fraction of active cells per step and short moving average.
 - Done when: both raw and smoothed values are available for display and logging.
 
-- [ ] NV-0004 Add minimal on-screen metric panel
+- [x] NV-0004 Add minimal on-screen metric panel
 - Scope: [view/matrix_view.py](view/matrix_view.py)
 - Deliverable: compact text or bar overlay for synchrony, entropy, active ratio.
 - Done when: metrics are visible without occluding primary matrix readability.
@@ -47,32 +47,32 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 
 ## Phase 1: Controlled Heterogeneity
 
-- [ ] NV-0101 Add threshold spread parameter
+- [x] NV-0101 Add threshold spread parameter
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: configurable per-neuron threshold variance around base threshold.
 - Done when: spread 0 behaves like current system; spread > 0 changes firing diversity.
 
-- [ ] NV-0102 Add tau spread parameter
+- [x] NV-0102 Add tau spread parameter
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: configurable per-neuron tau variance.
 - Done when: tau spread affects temporal desynchronization without instability at moderate values.
 
-- [ ] NV-0103 Add refractory spread parameter
+- [x] NV-0103 Add refractory spread parameter
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: configurable refractory-time variance.
 - Done when: visible reduction in lock-step bursts at moderate settings.
 
-- [ ] NV-0104 Add baseline drive spread parameter
+- [x] NV-0104 Add baseline drive spread parameter
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: configurable variation around global drive.
 - Done when: population does not collapse into identical firing under static controls.
 
-- [ ] NV-0105 Add heterogeneity macro control
+- [x] NV-0105 Add heterogeneity macro control
 - Scope: [control/midi_handler.py](control/midi_handler.py), [main.py](main.py)
 - Deliverable: one macro that scales all spread parameters together.
 - Done when: macro 0 is near-homogeneous and macro 1 is clearly more diverse.
 
-- [ ] NV-0106 Add deterministic seed control
+- [x] NV-0106 Add deterministic seed control
 - Scope: [model/lif_network.py](model/lif_network.py), [main.py](main.py)
 - Deliverable: optional seed used for stochastic initialization and spread sampling.
 - Done when: identical seed reproduces similar pattern statistics.

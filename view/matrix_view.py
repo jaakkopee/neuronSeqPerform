@@ -23,7 +23,7 @@ NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 KNOB_CHEATSHEET = {
     "A": [(3, "Tempo"), (9, "Volume"), (12, "Pairs"), (13, "Decay"), (14, "FMmod"), (15, "Quant")],
     "B": [(16, "Thresh"), (17, "Tau"), (18, "Weight"), (19, "Drive"), (20, "Swing"), (21, "Ratio")],
-    "C": [(22, "AT Tgt"), (23, "Topo"), (24, "Neurons"), (25, "Steps"), (26, "Root"), (27, "Scale")],
+    "C": [(22, "ATTgt*"), (23, "Topo"), (24, "Neurons"), (25, "Steps"), (26, "Root"), (27, "Scale")],
 }
 PAD_CHEATSHEET_A = [NOTE_NAMES[i % 12] for i in range(16)]
 PAD_CHEATSHEET_B = [
@@ -32,7 +32,7 @@ PAD_CHEATSHEET_B = [
 ]
 PAD_CHEATSHEET_C = [
     "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW", "Topo-", "Topo+",
-    "N--", "N++", "---", "---", "---", "---", "---", "---",
+    "N--", "N++", "Het-", "Het+", "---", "---", "---", "---",
 ]
 
 
@@ -187,30 +187,66 @@ class MatrixView:
             f"Threshold: {cfg.get('threshold', 1.0):.2f}   "
             f"Tau: {cfg.get('tau', 20.0):.1f} ms   "
             f"Weight: {cfg.get('weight_scale', 1.0):.2f}   "
-            f"Drive: {cfg.get('drive_n', 0.5):.2f}"
+            f"Drive: {cfg.get('drive_n', 0.5):.2f}   "
+            f"Het: {cfg.get('heterogeneity', 0.0):.2f}"
         )
         line3 = (
             f"Scale: {cfg.get('scale_name', 'major')}   "
             f"Root: {cfg.get('root_note', 60)}   "
             f"LIF steps/tick: {cfg.get('lif_steps', 12)}   "
-            f"AT target: {cfg.get('aftertouch_target', 'threshold')}   "
-            f"Sync: {cfg.get('synchrony_index', 0.0):.2f}   "
-            f"Ent: {cfg.get('spike_entropy', 0.0):.2f}   "
-            f"Act: {cfg.get('active_ratio', 0.0):.2f}   "
-            f"ActMA: {cfg.get('active_ratio_ma', 0.0):.2f}"
+            f"AT target: {cfg.get('aftertouch_target', 'threshold')}"
+        )
+        line4 = (
+            f"Het spread Thr/Tau/Ref/Drv: "
+            f"{cfg.get('threshold_spread', 0.0):.2f}/"
+            f"{cfg.get('tau_spread', 0.0):.2f}/"
+            f"{cfg.get('refractory_spread', 0.0):.2f}/"
+            f"{cfg.get('drive_spread', 0.0):.2f}   "
+            f"Seed: {cfg.get('hetero_seed', 1337)}"
         )
 
         self._screen.blit(self._fn_medium.render(line1, True, TEXT_MAIN), (x + 12, y + 12))
         self._screen.blit(self._fn_small.render(line2, True, TEXT_SUB), (x + 12, y + 38))
         self._screen.blit(self._fn_small.render(line3, True, TEXT_SUB), (x + 12, y + 58))
+        self._screen.blit(self._fn_small.render(line4, True, TEXT_SUB), (x + 12, y + 76))
 
         top_idx = int(cfg.get("topology_index", 0))
-        self._draw_topology_legend(x + 12, y + 84, w - 24, 54, top_idx)
+        metric_w = 220
+        metric_x = x + w - 12 - metric_w
+        metric_y = y + 102
+        legend_w = max(220, metric_x - (x + 12) - 8)
 
-        self._draw_controller_cheatsheet(x + 12, y + 142, w - 24, h - 172, cfg)
+        self._draw_topology_legend(x + 12, y + 102, legend_w, 54, top_idx)
+        self._draw_metric_panel(metric_x, metric_y, metric_w, 54, cfg)
 
-        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. Last received control is highlighted."
+        self._draw_controller_cheatsheet(x + 12, y + 160, w - 24, h - 190, cfg)
+
+        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. *AT target includes heterogeneity."
         self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, y + h - 22))
+
+    def _draw_metric_panel(self, x: int, y: int, w: int, h: int, cfg: dict) -> None:
+        pygame.draw.rect(self._screen, (14, 24, 44), (x, y, w, h), border_radius=6)
+        pygame.draw.rect(self._screen, (66, 96, 148), (x, y, w, h), width=1, border_radius=6)
+
+        metrics = [
+            ("Sync", float(cfg.get("synchrony_index", 0.0)), (250, 214, 120)),
+            ("Ent", float(cfg.get("spike_entropy", 0.0)), (124, 214, 255)),
+            ("Act", float(cfg.get("active_ratio", 0.0)), (138, 236, 166)),
+        ]
+
+        row_h = 16
+        bar_x = x + 42
+        bar_w = w - 86
+        for i, (name, value, color) in enumerate(metrics):
+            v = max(0.0, min(1.0, value))
+            ry = y + 3 + i * row_h
+
+            self._screen.blit(self._fn_small.render(name, True, TEXT_SUB), (x + 6, ry + 2))
+            pygame.draw.rect(self._screen, (30, 44, 70), (bar_x, ry + 4, bar_w, 8), border_radius=3)
+            fill_w = max(1, int(bar_w * v))
+            pygame.draw.rect(self._screen, color, (bar_x, ry + 4, fill_w, 8), border_radius=3)
+            val = self._fn_small.render(f"{v:.2f}", True, TEXT_MAIN)
+            self._screen.blit(val, (x + w - 36, ry + 2))
 
     def _draw_controller_cheatsheet(self, x: int, y: int, w: int, h: int, cfg: dict) -> None:
         last = cfg.get("last_midi") or {}

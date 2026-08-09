@@ -50,6 +50,15 @@ class LIFNetwork:
         self._tau = 20.0
         self._weight_scale = 1.0
         self._global_drive = 1.25
+        self._base_refractory_ms = 5.0
+
+        # Phase 1 heterogeneity controls.
+        self._heterogeneity = 0.0
+        self._heterogeneity_seed = 1337
+        self._threshold_spread = 0.0
+        self._tau_spread = 0.0
+        self._refractory_spread = 0.0
+        self._drive_spread = 0.0
 
         self._native = None
         if _native_ok:
@@ -68,6 +77,10 @@ class LIFNetwork:
         self._spikes = np.zeros((self.rows, self.cols), dtype=bool)
         self._potentials = np.zeros((self.rows, self.cols), dtype=np.float32)
         self.frequencies = np.zeros((SYNTH_ROWS, SYNTH_COLS), dtype=np.float32)
+        self._h_threshold = np.zeros(self.neuron_count, dtype=np.float32)
+        self._h_tau = np.zeros(self.neuron_count, dtype=np.float32)
+        self._h_refractory = np.zeros(self.neuron_count, dtype=np.float32)
+        self._h_drive = np.zeros(self.neuron_count, dtype=np.float32)
 
         # Fallback-state fields.
         self.v = np.zeros(self.neuron_count, np.float32)
@@ -75,7 +88,7 @@ class LIFNetwork:
         self.v_thresh = np.full(self.neuron_count, self._threshold, np.float32)
         self.tau = np.full(self.neuron_count, self._tau, np.float32)
         self.refractory = np.zeros(self.neuron_count, np.float32)
-        self.refractory_t = np.full(self.neuron_count, 5.0, np.float32)
+        self.refractory_t = np.full(self.neuron_count, self._base_refractory_ms, np.float32)
         self.dt = 1.0
         self.spikes = np.zeros(self.neuron_count, dtype=bool)
         self.external_drive = np.full(self.neuron_count, self._global_drive, np.float32)
@@ -85,6 +98,9 @@ class LIFNetwork:
         if self._native is None:
             self._seed_fallback_state()
             self._rebuild_fallback_weights()
+
+        self._regenerate_heterogeneity_profiles()
+        self._apply_heterogeneity()
 
     # ---------------------------------------------------------------------
     # Public API used by the rest of the app
@@ -151,16 +167,14 @@ class LIFNetwork:
         self._threshold = v
         if self._native is not None:
             self._native.set_threshold(v)
-            return
-        self.v_thresh[:] = v
+        self._apply_heterogeneity()
 
     def set_tau(self, value: float) -> None:
         v = float(value)
         self._tau = v
         if self._native is not None:
             self._native.set_tau(v)
-            return
-        self.tau[:] = v
+        self._apply_heterogeneity()
 
     def set_weight_scale(self, scale: float) -> None:
         v = float(scale)
@@ -176,8 +190,7 @@ class LIFNetwork:
         self._global_drive = drive
         if self._native is not None:
             self._native.set_global_drive(drive)
-            return
-        self.external_drive[:] = drive
+        self._apply_heterogeneity()
 
     def set_neuron_drive(self, row: int, col: int, value: float) -> None:
         idx = row * self.cols + col
@@ -230,6 +243,12 @@ class LIFNetwork:
             self.neuron_count = int(self._native.neuron_count())
             self._spikes = np.zeros((self.rows, self.cols), dtype=bool)
             self._potentials = np.zeros((self.rows, self.cols), dtype=np.float32)
+            self._h_threshold = np.zeros(self.neuron_count, dtype=np.float32)
+            self._h_tau = np.zeros(self.neuron_count, dtype=np.float32)
+            self._h_refractory = np.zeros(self.neuron_count, dtype=np.float32)
+            self._h_drive = np.zeros(self.neuron_count, dtype=np.float32)
+            self._regenerate_heterogeneity_profiles()
+            self._apply_heterogeneity()
             return self.neuron_count
 
         self.rows = max(1, math.ceil(self.neuron_count / self.cols))
@@ -238,15 +257,21 @@ class LIFNetwork:
         self.v_thresh = np.full(self.neuron_count, self._threshold, np.float32)
         self.tau = np.full(self.neuron_count, self._tau, np.float32)
         self.refractory = np.zeros(self.neuron_count, np.float32)
-        self.refractory_t = np.full(self.neuron_count, 5.0, np.float32)
+        self.refractory_t = np.full(self.neuron_count, self._base_refractory_ms, np.float32)
         self.spikes = np.zeros(self.neuron_count, dtype=bool)
         self.external_drive = np.full(self.neuron_count, self._global_drive, np.float32)
         self._base_weights = np.zeros((self.neuron_count, self.neuron_count), np.float32)
         self.weights = np.zeros((self.neuron_count, self.neuron_count), np.float32)
         self._spikes = np.zeros((self.rows, self.cols), dtype=bool)
         self._potentials = np.zeros((self.rows, self.cols), dtype=np.float32)
+        self._h_threshold = np.zeros(self.neuron_count, dtype=np.float32)
+        self._h_tau = np.zeros(self.neuron_count, dtype=np.float32)
+        self._h_refractory = np.zeros(self.neuron_count, dtype=np.float32)
+        self._h_drive = np.zeros(self.neuron_count, dtype=np.float32)
         self._seed_fallback_state()
         self._rebuild_fallback_weights()
+        self._regenerate_heterogeneity_profiles()
+        self._apply_heterogeneity()
         return self.neuron_count
 
     def nudge_neuron_count_step(self, delta: int) -> int:
@@ -258,18 +283,127 @@ class LIFNetwork:
     def topology_name(self) -> str:
         return TOPOLOGY_NAMES[self.topology_index]
 
+    def set_threshold_spread(self, value: float) -> None:
+        self._threshold_spread = float(np.clip(value, 0.0, 1.5))
+        self._apply_heterogeneity()
+
+    def set_tau_spread(self, value: float) -> None:
+        self._tau_spread = float(np.clip(value, 0.0, 1.5))
+        self._apply_heterogeneity()
+
+    def set_refractory_spread(self, value: float) -> None:
+        self._refractory_spread = float(np.clip(value, 0.0, 1.5))
+        self._apply_heterogeneity()
+
+    def set_drive_spread(self, value: float) -> None:
+        self._drive_spread = float(np.clip(value, 0.0, 1.5))
+        self._apply_heterogeneity()
+
+    def set_heterogeneity(self, value: float) -> None:
+        v = float(np.clip(value, 0.0, 1.0))
+        self._heterogeneity = v
+        self._threshold_spread = 0.95 * v
+        self._tau_spread = 0.85 * v
+        self._refractory_spread = 0.75 * v
+        self._drive_spread = 1.10 * v
+        self._apply_heterogeneity()
+
+    def set_heterogeneity_seed(self, seed: int) -> None:
+        self._heterogeneity_seed = int(seed)
+        self._regenerate_heterogeneity_profiles()
+        self._seed_fallback_state()
+        self._rebuild_fallback_weights()
+        self._apply_heterogeneity()
+
+    def heterogeneity_state(self) -> dict:
+        return {
+            "heterogeneity": float(self._heterogeneity),
+            "hetero_seed": int(self._heterogeneity_seed),
+            "threshold_spread": float(self._threshold_spread),
+            "tau_spread": float(self._tau_spread),
+            "refractory_spread": float(self._refractory_spread),
+            "drive_spread": float(self._drive_spread),
+        }
+
     # ------------------------------------------------------------------
     # NumPy fallback internals
     # ------------------------------------------------------------------
+    def _regenerate_heterogeneity_profiles(self) -> None:
+        n = self.neuron_count
+        if n <= 0:
+            self._h_threshold = np.zeros(0, dtype=np.float32)
+            self._h_tau = np.zeros(0, dtype=np.float32)
+            self._h_refractory = np.zeros(0, dtype=np.float32)
+            self._h_drive = np.zeros(0, dtype=np.float32)
+            return
+
+        rng = np.random.default_rng(self._heterogeneity_seed + n * 13 + self.topology_index * 101)
+
+        def make_axis() -> np.ndarray:
+            v = rng.standard_normal(n).astype(np.float32)
+            v -= float(np.mean(v))
+            std = float(np.std(v))
+            if std > 1e-6:
+                v /= std
+            v = np.clip(v, -2.0, 2.0) * 0.5
+            return v
+
+        self._h_threshold = make_axis()
+        self._h_tau = make_axis()
+        self._h_refractory = make_axis()
+        self._h_drive = make_axis()
+
+    def _apply_heterogeneity(self) -> None:
+        if self.neuron_count <= 0:
+            return
+
+        # Spread controls are centered around base scalar parameters.
+        thresh_vec = np.clip(
+            self._threshold * (1.0 + 0.70 * self._threshold_spread * self._h_threshold),
+            0.05,
+            3.0,
+        ).astype(np.float32)
+        tau_vec = np.clip(
+            self._tau * (1.0 + 0.75 * self._tau_spread * self._h_tau),
+            1.0,
+            200.0,
+        ).astype(np.float32)
+        refr_vec = np.clip(
+            self._base_refractory_ms * (1.0 + 0.80 * self._refractory_spread * self._h_refractory),
+            0.0,
+            40.0,
+        ).astype(np.float32)
+
+        drive_offsets = (0.90 * self._drive_spread * self._h_drive).astype(np.float32)
+
+        if self._native is not None:
+            # Native backend currently supports scalar threshold/tau/refractory.
+            # Spread controls are projected into per-neuron drive offsets so the
+            # performer still gets diversity from all heterogeneity knobs.
+            drive_offsets = drive_offsets + (
+                -0.35 * self._threshold_spread * self._h_threshold
+                -0.20 * self._tau_spread * self._h_tau
+                -0.15 * self._refractory_spread * self._h_refractory
+            ).astype(np.float32)
+            drive_offsets = np.clip(drive_offsets, -1.5, 1.5).astype(np.float32)
+            self._native.set_external_drive(np.ascontiguousarray(drive_offsets, dtype=np.float32))
+            return
+
+        self.v_thresh[:] = thresh_vec
+        self.tau[:] = tau_vec
+        self.refractory_t[:] = refr_vec
+        self.external_drive[:] = np.clip(self._global_drive + drive_offsets, 0.0, 3.0)
+
     def _seed_fallback_state(self) -> None:
-        self.v[:] = np.random.uniform(0.02, 0.22, self.neuron_count).astype(np.float32)
+        rng = np.random.default_rng(self._heterogeneity_seed + self.neuron_count * 17 + self.topology_index * 193)
+        self.v[:] = rng.uniform(0.02, 0.22, self.neuron_count).astype(np.float32)
         self.refractory[:] = 0.0
         self.spikes[:] = False
 
     def _rebuild_fallback_weights(self) -> None:
         n = self.neuron_count
         w = np.zeros((n, n), dtype=np.float32)
-        rng = np.random.default_rng(42 + self.topology_index)
+        rng = np.random.default_rng(self._heterogeneity_seed + 42 + self.topology_index * 97 + n)
 
         if self.topology_index == 0:  # Ring
             for i in range(n):

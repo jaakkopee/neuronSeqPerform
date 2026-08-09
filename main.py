@@ -113,6 +113,12 @@ def main() -> None:
         "topology_index":         0,
         "topology_name":          "Ring",
         "neuron_count":           512,
+        "heterogeneity":          0.0,
+        "hetero_seed":            1337,
+        "threshold_spread":       0.0,
+        "tau_spread":             0.0,
+        "refractory_spread":      0.0,
+        "drive_spread":           0.0,
         "last_midi":              None,
         "controller_coverage_ok": False,
         "controller_coverage_missing": [],
@@ -127,9 +133,13 @@ def main() -> None:
     network = LIFNetwork()
     synth   = make_synth()
 
+    network.set_heterogeneity_seed(int(config_state["hetero_seed"]))
+    network.set_heterogeneity(float(config_state["heterogeneity"]))
+
     config_state["topology_index"] = network.topology_index
     config_state["topology_name"] = network.topology_name()
     config_state["neuron_count"] = network.neuron_count
+    config_state.update(network.heterogeneity_state())
 
     # Seed with a musical scale
     synth.set_all_base_freqs(_build_initial_freqs(60, "major"))
@@ -241,6 +251,7 @@ def main() -> None:
             config_state["topology_index"] = network.topology_index
             config_state["topology_name"] = network.topology_name()
             config_state["neuron_count"] = network.neuron_count
+            config_state.update(network.heterogeneity_state())
 
             view.update(
                 spikes       = spikes,
