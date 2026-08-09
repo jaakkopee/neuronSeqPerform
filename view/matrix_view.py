@@ -44,7 +44,21 @@ def _hsv_to_rgb255(h: float, s: float, v: float) -> tuple[int, int, int]:
 class MatrixView:
     def __init__(self):
         pygame.init()
-        self._screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        if not pygame.display.get_init():
+            pygame.display.init()
+
+        default_w = SCREEN_WIDTH
+        default_h = SCREEN_HEIGHT
+        try:
+            display_info = pygame.display.Info()
+            default_w = min(SCREEN_WIDTH, max(800, int(display_info.current_w * 0.94)))
+            default_h = min(SCREEN_HEIGHT, max(620, int(display_info.current_h * 0.9)))
+        except pygame.error:
+            # Keep configured defaults if display info is unavailable.
+            pass
+        self._windowed_size = (default_w, default_h)
+        self._is_fullscreen = False
+        self._screen = pygame.display.set_mode(self._windowed_size, pygame.RESIZABLE)
         pygame.display.set_caption("NeuronSeqPerform")
         self._clock = pygame.time.Clock()
 
@@ -61,6 +75,16 @@ class MatrixView:
         self._fade = np.zeros((8, 16), dtype=np.float32)
         self._pad_fade: dict[int, float] = {}
 
+    def _toggle_fullscreen(self) -> None:
+        if self._is_fullscreen:
+            self._screen = pygame.display.set_mode(self._windowed_size, pygame.RESIZABLE)
+            self._is_fullscreen = False
+            return
+
+        self._windowed_size = self._screen.get_size()
+        self._screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self._is_fullscreen = True
+
     def update(self, spikes, potentials, frequencies, current_step, config_state):
         self.spikes = np.asarray(spikes, dtype=bool)
         self.potentials = np.asarray(potentials, dtype=np.float32)
@@ -69,7 +93,8 @@ class MatrixView:
         self.config_state = config_state
 
         if self._fade.shape != self.spikes.shape:
-            self._fade = np.zeros_like(self.potentials, dtype=np.float32)
+            # Spike grid is the authoritative visual shape during live resizes.
+            self._fade = np.zeros(self.spikes.shape, dtype=np.float32)
         self._fade = np.where(self.spikes, 1.0, self._fade).astype(np.float32)
 
     def draw(self) -> None:
@@ -86,7 +111,8 @@ class MatrixView:
                 del self._pad_fade[k]
 
     def _draw_background(self) -> None:
-        h = SCREEN_HEIGHT
+        win_w, win_h = self._screen.get_size()
+        h = win_h
         for y in range(h):
             t = y / max(1, h - 1)
             c = (
@@ -94,7 +120,7 @@ class MatrixView:
                 int(BG_TOP[1] + (BG_BOT[1] - BG_TOP[1]) * t),
                 int(BG_TOP[2] + (BG_BOT[2] - BG_TOP[2]) * t),
             )
-            pygame.draw.line(self._screen, c, (0, y), (SCREEN_WIDTH, y))
+            pygame.draw.line(self._screen, c, (0, y), (win_w, y))
 
     def _draw_title(self) -> None:
         title = self._fn_title.render("NeuronSeqPerform  |  LIF Metal Grid", True, TEXT_MAIN)
@@ -102,11 +128,12 @@ class MatrixView:
 
     def _draw_grid(self) -> None:
         rows, cols = self.spikes.shape
+        win_w, win_h = self._screen.get_size()
 
         x = 20
         y = 48
-        w = SCREEN_WIDTH - 40
-        h = int(SCREEN_HEIGHT * 0.56)
+        w = win_w - 40
+        h = int(win_h * 0.56)
 
         pygame.draw.rect(self._screen, (9, 16, 34), (x, y, w, h), border_radius=10)
         pygame.draw.rect(self._screen, PANEL_BORDER, (x, y, w, h), width=1, border_radius=10)
@@ -165,10 +192,11 @@ class MatrixView:
         pygame.draw.rect(self._screen, STEP_HIGHLIGHT, (hx, y + h - 5, max(2, int(cw)), 4), border_radius=2)
 
     def _draw_status_panel(self) -> None:
-        y = int(SCREEN_HEIGHT * 0.64)
+        win_w, win_h = self._screen.get_size()
+        y = int(win_h * 0.64)
         x = 20
-        w = SCREEN_WIDTH - 40
-        h = SCREEN_HEIGHT - y - 18
+        w = win_w - 40
+        h = win_h - y - 18
 
         pygame.draw.rect(self._screen, PANEL_BG, (x, y, w, h), border_radius=10)
         pygame.draw.rect(self._screen, PANEL_BORDER, (x, y, w, h), width=1, border_radius=10)
@@ -207,25 +235,36 @@ class MatrixView:
             f"Dly:{cfg.get('delay_spread_steps', 0)} jit:{cfg.get('delay_jitter', 0.0):.2f}   "
             f"Seed:{cfg.get('hetero_seed', 1337)}"
         )
+        line5 = (
+            f"Adapt str:{cfg.get('adaptation_strength', 0.0):.2f} "
+            f"dec:{cfg.get('adaptation_decay', 0.93):.3f}   "
+            f"Noise amt:{cfg.get('noise_amount', 0.0):.2f} "
+            f"mode:{cfg.get('noise_color', 'white')}   "
+            f"Spatial:{cfg.get('spatial_noise', 0.0):.2f}"
+        )
 
         self._screen.blit(self._fn_medium.render(line1, True, TEXT_MAIN), (x + 12, y + 12))
         self._screen.blit(self._fn_small.render(line2, True, TEXT_SUB), (x + 12, y + 38))
         self._screen.blit(self._fn_small.render(line3, True, TEXT_SUB), (x + 12, y + 58))
         self._screen.blit(self._fn_small.render(line4, True, TEXT_SUB), (x + 12, y + 76))
+        self._screen.blit(self._fn_small.render(line5, True, TEXT_SUB), (x + 12, y + 94))
 
         top_idx = int(cfg.get("topology_index", 0))
         metric_w = 220
         metric_x = x + w - 12 - metric_w
-        metric_y = y + 102
+        metric_y = y + 120
         legend_w = max(220, metric_x - (x + 12) - 8)
 
-        self._draw_topology_legend(x + 12, y + 102, legend_w, 54, top_idx)
+        self._draw_topology_legend(x + 12, y + 120, legend_w, 54, top_idx)
         self._draw_metric_panel(metric_x, metric_y, metric_w, 54, cfg)
 
-        self._draw_controller_cheatsheet(x + 12, y + 160, w - 24, h - 190, cfg)
+        cheat_y = y + 178
+        hints_y = y + h - 16
+        cheat_h = max(40, hints_y - 8 - cheat_y)
+        self._draw_controller_cheatsheet(x + 12, cheat_y, w - 24, cheat_h, cfg)
 
-        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. *AT target includes heterogeneity + phase-2 controls."
-        self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, y + h - 22))
+        hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. *AT target includes heterogeneity + phase-2 + phase-3 controls."
+        self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, hints_y))
 
     def _draw_metric_panel(self, x: int, y: int, w: int, h: int, cfg: dict) -> None:
         pygame.draw.rect(self._screen, (14, 24, 44), (x, y, w, h), border_radius=6)
@@ -261,12 +300,15 @@ class MatrixView:
             return
 
         # Knob cheat-sheet (3 rows x 6)
-        knob_h = max(64, int(h * 0.45))
+        knob_h = int(h * 0.45)
+        knob_h = max(28, min(72, knob_h))
+        if h - knob_h - 6 < 24:
+            knob_h = max(24, h - 6 - 24)
         self._draw_knob_cheatsheet(x, y, w, knob_h, kind, bank, slot)
 
         # Pad cheat-sheet (3 rows x 16)
         pad_y = y + knob_h + 6
-        pad_h = max(50, h - knob_h - 6)
+        pad_h = max(24, h - knob_h - 6)
         self._draw_pad_cheatsheet(x, pad_y, w, pad_h, kind, bank, slot)
 
         if last:
@@ -284,7 +326,7 @@ class MatrixView:
     def _draw_knob_cheatsheet(self, x: int, y: int, w: int, h: int, kind: str, bank: str, slot: int) -> None:
         banks = ["A", "B", "C"]
         row_gap = 4
-        row_h = max(16, int((h - row_gap * 2) / 3))
+        row_h = max(8, int((h - row_gap * 2) / 3))
         for ri, b in enumerate(banks):
             ry = y + ri * (row_h + row_gap)
             items = KNOB_CHEATSHEET[b]
@@ -308,7 +350,7 @@ class MatrixView:
             ("C", PAD_CHEATSHEET_C),
         ]
         row_gap = 3
-        row_h = max(12, int((h - row_gap * 2) / 3))
+        row_h = max(8, int((h - row_gap * 2) / 3))
         gap = 2
         tile_w = max(24, int((w - gap * 15) / 16))
 
@@ -432,8 +474,21 @@ class MatrixView:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_F11:
+                    self._toggle_fullscreen()
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and (event.mod & pygame.KMOD_ALT):
+                    self._toggle_fullscreen()
+                elif event.key == pygame.K_ESCAPE:
+                    if self._is_fullscreen:
+                        self._toggle_fullscreen()
+                    else:
+                        return False
+            if event.type == pygame.VIDEORESIZE and not self._is_fullscreen:
+                resized_w = max(800, int(event.w))
+                resized_h = max(620, int(event.h))
+                self._windowed_size = (resized_w, resized_h)
+                self._screen = pygame.display.set_mode(self._windowed_size, pygame.RESIZABLE)
         return True
 
     def tick(self) -> None:

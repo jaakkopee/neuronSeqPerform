@@ -73,6 +73,7 @@ class MIDIHandler:
         "quantize",  "swing", "master_vol", "mod_index_scale",
         "active_pairs", "decay_speed", "heterogeneity",
         "inhibitory_ratio", "inhibitory_gain", "delay_spread", "delay_jitter",
+        "adaptation_strength", "adaptation_decay", "noise_amount", "noise_color", "spatial_noise",
     ]
     NEURON_COUNT_STEPS = [128, 256, 512, 1024, 2048, 4096]
     CC_LABELS = {
@@ -114,6 +115,7 @@ class MIDIHandler:
         self._cfg.setdefault("last_midi", None)
         self._sync_heterogeneity_cfg()
         self._sync_phase2_cfg()
+        self._sync_phase3_cfg()
 
         # quick static audit: ensure all main runtime parameters are reachable
         # via knobs, pads, or aftertouch routing.
@@ -149,6 +151,7 @@ class MIDIHandler:
             "aftertouch_target", "topology_index", "neuron_count",
             "lif_steps", "root_note", "scale_name", "heterogeneity",
             "inhibitory_ratio", "inhibitory_gain", "delay_spread_steps", "delay_jitter",
+            "adaptation_strength", "adaptation_decay", "noise_amount", "noise_color", "spatial_noise",
         }
 
         knob_controls = {
@@ -166,6 +169,7 @@ class MIDIHandler:
             "threshold", "tau", "drive_n", "tempo", "quantization_strength",
             "swing_amount", "master_volume", "mod_index_scale", "active_pairs", "decay_speed",
             "heterogeneity", "inhibitory_ratio", "inhibitory_gain", "delay_spread_steps", "delay_jitter",
+            "adaptation_strength", "adaptation_decay", "noise_amount", "noise_color", "spatial_noise",
         }
 
         exposed = knob_controls | pad_controls | aftertouch_controls
@@ -467,6 +471,10 @@ class MIDIHandler:
         state = self._network.phase2_state()
         self._cfg.update(state)
 
+    def _sync_phase3_cfg(self) -> None:
+        state = self._network.phase3_state()
+        self._cfg.update(state)
+
     # ── Aftertouch handler ────────────────────────────────────────────────────
     def _on_aftertouch(self, value: int) -> None:
         n = value / 127.0
@@ -510,3 +518,18 @@ class MIDIHandler:
         elif t == "delay_jitter":
             self._network.set_delay_jitter(n)
             self._sync_phase2_cfg()
+        elif t == "adaptation_strength":
+            self._network.set_adaptation_strength(n * 3.0)
+            self._sync_phase3_cfg()
+        elif t == "adaptation_decay":
+            self._network.set_adaptation_decay(0.70 + n * 0.299)
+            self._sync_phase3_cfg()
+        elif t == "noise_amount":
+            self._network.set_noise_amount(n)
+            self._sync_phase3_cfg()
+        elif t == "noise_color":
+            self._network.set_noise_color(n)
+            self._sync_phase3_cfg()
+        elif t == "spatial_noise":
+            self._network.set_spatial_noise(n)
+            self._sync_phase3_cfg()

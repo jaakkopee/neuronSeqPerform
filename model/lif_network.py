@@ -71,6 +71,13 @@ class LIFNetwork:
         self._delay_spread_steps = 0
         self._delay_jitter = 0.0
 
+        # Phase 3 adaptation and noise controls.
+        self._adaptation_strength = 0.0
+        self._adaptation_decay = 0.93
+        self._noise_amount = 0.0
+        self._noise_color = "white"
+        self._spatial_noise = 0.0
+
         self._native = None
         if _native_ok:
             try:
@@ -97,6 +104,10 @@ class LIFNetwork:
         self._delay_steps = np.zeros(self.neuron_count, dtype=np.int16)
         self._spike_history: deque[np.ndarray] = deque(maxlen=1)
         self._zero_spikes = np.zeros(self.neuron_count, dtype=np.float32)
+        self._adaptation_current = np.zeros(self.neuron_count, dtype=np.float32)
+        self._noise_state = np.zeros(self.neuron_count, dtype=np.float32)
+        self._spatial_profile = np.zeros(self.neuron_count, dtype=np.float32)
+        self._noise_rng = np.random.default_rng(self._heterogeneity_seed + self.neuron_count * 41)
 
         # Fallback-state fields.
         self.v = np.zeros(self.neuron_count, np.float32)
@@ -118,6 +129,7 @@ class LIFNetwork:
         self._regenerate_heterogeneity_profiles()
         self._regenerate_population_roles()
         self._regenerate_delay_profile()
+        self._regenerate_spatial_profile()
         self._reset_spike_history()
         self._apply_heterogeneity()
 
@@ -129,7 +141,8 @@ class LIFNetwork:
             if self._native is not None:
                 delayed_src = self._delayed_source_activity()
                 syn_overlay = self.weights @ delayed_src
-                drive_vec = np.clip(self._native_drive_offsets + syn_overlay, -2.5, 3.5).astype(np.float32)
+                runtime_term = self._phase3_runtime_term()
+                drive_vec = np.clip(self._native_drive_offsets + syn_overlay + runtime_term, -2.5, 3.5).astype(np.float32)
                 self._native.set_external_drive(np.ascontiguousarray(drive_vec, dtype=np.float32))
 
                 self._native.step()
@@ -138,11 +151,13 @@ class LIFNetwork:
                 self.rows, self.cols = self._spikes.shape
                 self.neuron_count = int(self._native.neuron_count())
                 self._push_spike_history(self._spikes.reshape(-1)[: self.neuron_count])
+                self._update_adaptation(self._spikes.reshape(-1)[: self.neuron_count])
                 return self._spikes
 
             delayed_src = self._delayed_source_activity()
             i_syn = self.weights @ delayed_src
-            i_tot = i_syn + self.external_drive
+            runtime_term = self._phase3_runtime_term()
+            i_tot = i_syn + self.external_drive + runtime_term
 
             in_ref = self.refractory > 0.0
             dv = (-(self.v - self.v_rest) + i_tot) * (self.dt / np.maximum(self.tau, 1e-4))
@@ -154,6 +169,7 @@ class LIFNetwork:
             self.refractory[self.spikes] = self.refractory_t[self.spikes]
             self.refractory = np.maximum(0.0, self.refractory - self.dt)
             self._push_spike_history(self.spikes)
+            self._update_adaptation(self.spikes)
 
             self._pack_fallback_views()
             return self._spikes
@@ -257,6 +273,7 @@ class LIFNetwork:
             self._regenerate_heterogeneity_profiles()
             self._regenerate_population_roles()
             self._regenerate_delay_profile()
+            self._regenerate_spatial_profile()
             self._reset_spike_history()
             self._rebuild_fallback_weights()
             self._apply_heterogeneity()
@@ -289,6 +306,10 @@ class LIFNetwork:
             self._inhibitory_mask = np.zeros(self.neuron_count, dtype=bool)
             self._delay_steps = np.zeros(self.neuron_count, dtype=np.int16)
             self._zero_spikes = np.zeros(self.neuron_count, dtype=np.float32)
+            self._adaptation_current = np.zeros(self.neuron_count, dtype=np.float32)
+            self._noise_state = np.zeros(self.neuron_count, dtype=np.float32)
+            self._spatial_profile = np.zeros(self.neuron_count, dtype=np.float32)
+            self._noise_rng = np.random.default_rng(self._heterogeneity_seed + self.neuron_count * 41)
 
             self.v = np.zeros(self.neuron_count, np.float32)
             self.v_rest = np.zeros(self.neuron_count, np.float32)
@@ -306,6 +327,7 @@ class LIFNetwork:
             self._regenerate_heterogeneity_profiles()
             self._regenerate_population_roles()
             self._regenerate_delay_profile()
+            self._regenerate_spatial_profile()
             self._reset_spike_history()
             self._apply_heterogeneity()
             return self.neuron_count
@@ -350,9 +372,11 @@ class LIFNetwork:
             self._regenerate_heterogeneity_profiles()
             self._regenerate_population_roles()
             self._regenerate_delay_profile()
+            self._regenerate_spatial_profile()
             self._reset_spike_history()
             if self._native is None:
                 self._seed_fallback_state()
+            self._noise_rng = np.random.default_rng(self._heterogeneity_seed + self.neuron_count * 41)
             self._rebuild_fallback_weights()
             self._apply_heterogeneity()
 
@@ -404,6 +428,40 @@ class LIFNetwork:
             "inhibitory_scale": float(self._inhibitory_scale),
             "delay_spread_steps": int(self._delay_spread_steps),
             "delay_jitter": float(self._delay_jitter),
+        }
+
+    def set_adaptation_strength(self, value: float) -> None:
+        with self._state_lock:
+            self._adaptation_strength = float(np.clip(value, 0.0, 3.0))
+
+    def set_adaptation_decay(self, value: float) -> None:
+        with self._state_lock:
+            self._adaptation_decay = float(np.clip(value, 0.70, 0.999))
+
+    def set_noise_amount(self, value: float) -> None:
+        with self._state_lock:
+            self._noise_amount = float(np.clip(value, 0.0, 1.0))
+
+    def set_noise_color(self, value: str | int | float) -> None:
+        with self._state_lock:
+            if isinstance(value, str):
+                mode = value.lower().strip()
+                self._noise_color = "pink" if mode in {"pink", "p"} else "white"
+            else:
+                self._noise_color = "pink" if float(value) >= 0.5 else "white"
+
+    def set_spatial_noise(self, value: float) -> None:
+        with self._state_lock:
+            self._spatial_noise = float(np.clip(value, 0.0, 1.0))
+
+    def phase3_state(self) -> dict:
+        return {
+            "adaptation_strength": float(self._adaptation_strength),
+            "adaptation_decay": float(self._adaptation_decay),
+            "noise_amount": float(self._noise_amount),
+            "noise_color": self._noise_color,
+            "noise_color_index": 1 if self._noise_color == "pink" else 0,
+            "spatial_noise": float(self._spatial_noise),
         }
 
     # ------------------------------------------------------------------
@@ -472,6 +530,8 @@ class LIFNetwork:
         self._spike_history = deque(maxlen=hist_len)
         zero = np.zeros(self.neuron_count, dtype=np.float32)
         self._zero_spikes = zero
+        self._adaptation_current = np.zeros(self.neuron_count, dtype=np.float32)
+        self._noise_state = np.zeros(self.neuron_count, dtype=np.float32)
         for _ in range(hist_len):
             self._spike_history.append(zero.copy())
 
@@ -524,6 +584,76 @@ class LIFNetwork:
 
         scaled = (self._base_weights * self._weight_scale).astype(np.float32)
         self.weights = scaled * src_scale[np.newaxis, :]
+
+    def _regenerate_spatial_profile(self) -> None:
+        n = self.neuron_count
+        if n <= 0:
+            self._spatial_profile = np.zeros(0, dtype=np.float32)
+            return
+
+        rows = max(1, self.rows)
+        cols = max(1, self.cols)
+        yy = np.arange(rows, dtype=np.float32).reshape(-1, 1)
+        xx = np.arange(cols, dtype=np.float32).reshape(1, -1)
+
+        # Structured low-frequency field for clustered modulation.
+        field = (
+            np.sin(2.0 * np.pi * yy / max(2.0, rows * 0.7))
+            + np.cos(2.0 * np.pi * xx / max(2.0, cols * 0.8))
+        ).astype(np.float32)
+
+        rng = np.random.default_rng(self._heterogeneity_seed + n * 37 + self.topology_index * 241)
+        field += 0.15 * rng.standard_normal(field.shape).astype(np.float32)
+
+        flat = field.reshape(-1)[:n]
+        flat -= float(np.mean(flat))
+        std = float(np.std(flat))
+        if std > 1e-6:
+            flat /= std
+        self._spatial_profile = np.clip(flat, -2.0, 2.0).astype(np.float32)
+
+    def _phase3_runtime_term(self) -> np.ndarray:
+        n = self.neuron_count
+        if n <= 0:
+            return np.zeros(0, dtype=np.float32)
+
+        if self._noise_state.shape[0] != n:
+            self._noise_state = np.zeros(n, dtype=np.float32)
+        if self._adaptation_current.shape[0] != n:
+            self._adaptation_current = np.zeros(n, dtype=np.float32)
+        if self._spatial_profile.shape[0] != n:
+            self._regenerate_spatial_profile()
+
+        white = self._noise_rng.standard_normal(n).astype(np.float32)
+        if self._noise_color == "pink":
+            self._noise_state = (0.985 * self._noise_state + 0.15 * white).astype(np.float32)
+            noise = self._noise_state
+        else:
+            noise = white
+
+        noise_term = (self._noise_amount * 0.8) * noise
+        spatial_term = (self._spatial_noise * 0.9) * self._spatial_profile
+        adapt_term = self._adaptation_current
+
+        return np.clip(noise_term + spatial_term - adapt_term, -2.5, 2.5).astype(np.float32)
+
+    def _update_adaptation(self, spikes: np.ndarray) -> None:
+        n = self.neuron_count
+        if n <= 0:
+            return
+        s = np.asarray(spikes, dtype=np.float32).reshape(-1)
+        if s.size < n:
+            tmp = np.zeros(n, dtype=np.float32)
+            tmp[: s.size] = s
+            s = tmp
+        elif s.size > n:
+            s = s[:n]
+
+        self._adaptation_current = (
+            self._adaptation_current * self._adaptation_decay
+            + self._adaptation_strength * s
+        ).astype(np.float32)
+        self._adaptation_current = np.clip(self._adaptation_current, 0.0, 4.0)
 
     def _apply_heterogeneity(self) -> None:
         if self.neuron_count <= 0:

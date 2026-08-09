@@ -125,6 +125,12 @@ def main() -> None:
         "inhibitory_scale":       1.0,
         "delay_spread_steps":     0,
         "delay_jitter":           0.0,
+        "adaptation_strength":    0.0,
+        "adaptation_decay":       0.93,
+        "noise_amount":           0.0,
+        "noise_color":            "white",
+        "noise_color_index":      0,
+        "spatial_noise":          0.0,
         "last_midi":              None,
         "controller_coverage_ok": False,
         "controller_coverage_missing": [],
@@ -147,12 +153,18 @@ def main() -> None:
     network.set_inhibitory_scale(float(config_state["inhibitory_scale"]))
     network.set_delay_spread_steps(int(config_state["delay_spread_steps"]))
     network.set_delay_jitter(float(config_state["delay_jitter"]))
+    network.set_adaptation_strength(float(config_state["adaptation_strength"]))
+    network.set_adaptation_decay(float(config_state["adaptation_decay"]))
+    network.set_noise_amount(float(config_state["noise_amount"]))
+    network.set_noise_color(config_state["noise_color"])
+    network.set_spatial_noise(float(config_state["spatial_noise"]))
 
     config_state["topology_index"] = network.topology_index
     config_state["topology_name"] = network.topology_name()
     config_state["neuron_count"] = network.neuron_count
     config_state.update(network.heterogeneity_state())
     config_state.update(network.phase2_state())
+    config_state.update(network.phase3_state())
 
     # Seed with a musical scale
     synth.set_all_base_freqs(_build_initial_freqs(60, "major"))
@@ -266,6 +278,7 @@ def main() -> None:
             config_state["neuron_count"] = network.neuron_count
             config_state.update(network.heterogeneity_state())
             config_state.update(network.phase2_state())
+            config_state.update(network.phase3_state())
 
             view.update(
                 spikes       = spikes,

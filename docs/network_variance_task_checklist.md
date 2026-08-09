@@ -111,27 +111,27 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 
 ## Phase 3: Adaptation and Structured Noise
 
-- [ ] NV-0301 Add spike-frequency adaptation current
+- [x] NV-0301 Add spike-frequency adaptation current
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: adaptation variable with configurable strength and decay.
 - Done when: sustained firing self-limits and pattern evolution increases over time.
 
-- [ ] NV-0302 Add noise amount parameter
+- [x] NV-0302 Add noise amount parameter
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: global noise amplitude injected into membrane update.
 - Done when: low noise adds variation; high noise predictably increases randomness.
 
-- [ ] NV-0303 Add noise color selection
+- [x] NV-0303 Add noise color selection
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: selector for white and pink-like noise modes.
 - Done when: noise modes are switchable and produce audibly/visually distinct behavior.
 
-- [ ] NV-0304 Add spatial noise mode
+- [x] NV-0304 Add spatial noise mode
 - Scope: [model/lif_network.py](model/lif_network.py)
 - Deliverable: spatially correlated field influencing local neighborhoods.
 - Done when: clustered activity appears instead of fully independent flicker.
 
-- [ ] NV-0305 Add controls for adaptation and noise
+- [x] NV-0305 Add controls for adaptation and noise
 - Scope: [control/midi_handler.py](control/midi_handler.py)
 - Deliverable: mapped controls or mode layer for adaptation/noise parameters.
 - Done when: performer can dial these parameters in real time.
