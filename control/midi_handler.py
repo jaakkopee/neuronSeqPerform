@@ -74,6 +74,8 @@ class MIDIHandler:
         "active_pairs", "decay_speed", "heterogeneity",
         "inhibitory_ratio", "inhibitory_gain", "delay_spread", "delay_jitter",
         "adaptation_strength", "adaptation_decay", "noise_amount", "noise_color", "spatial_noise",
+        "anti_lock_enable", "anti_lock_strength",
+        "scene_morph_time",
     ]
     NEURON_COUNT_STEPS = [128, 256, 512, 1024, 2048, 4096]
     CC_LABELS = {
@@ -152,6 +154,8 @@ class MIDIHandler:
             "lif_steps", "root_note", "scale_name", "heterogeneity",
             "inhibitory_ratio", "inhibitory_gain", "delay_spread_steps", "delay_jitter",
             "adaptation_strength", "adaptation_decay", "noise_amount", "noise_color", "spatial_noise",
+            "anti_lock_enabled", "anti_lock_strength",
+            "scene_morph_time",
         }
 
         knob_controls = {
@@ -170,6 +174,8 @@ class MIDIHandler:
             "swing_amount", "master_volume", "mod_index_scale", "active_pairs", "decay_speed",
             "heterogeneity", "inhibitory_ratio", "inhibitory_gain", "delay_spread_steps", "delay_jitter",
             "adaptation_strength", "adaptation_decay", "noise_amount", "noise_color", "spatial_noise",
+            "anti_lock_enabled", "anti_lock_strength",
+            "scene_morph_time",
         }
 
         exposed = knob_controls | pad_controls | aftertouch_controls
@@ -533,3 +539,9 @@ class MIDIHandler:
         elif t == "spatial_noise":
             self._network.set_spatial_noise(n)
             self._sync_phase3_cfg()
+        elif t == "anti_lock_enable":
+            self._cfg["anti_lock_enabled"] = (n >= 0.5)
+        elif t == "anti_lock_strength":
+            self._cfg["anti_lock_strength"] = n
+        elif t == "scene_morph_time":
+            self._cfg["scene_morph_time"] = n * 8.0

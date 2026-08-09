@@ -138,57 +138,59 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 
 ## Phase 4: Scene System and Strategy Engine
 
-- [ ] NV-0401 Create scene manager component
+- [x] NV-0401 Create scene manager component
 - Scope: new file scene manager module, [main.py](main.py)
 - Deliverable: scene data model, load/save/recall API, parameter interpolation support.
 - Done when: scenes can be recalled programmatically and produce deterministic target states.
 
-- [ ] NV-0402 Add keyboard scene launch 0 to 9
+- [x] NV-0402 Add keyboard scene launch 0 to 9
 - Scope: [main.py](main.py)
 - Deliverable: key mapping from numeric keys to scene slots.
 - Done when: each key reliably launches matching scene.
 
-- [ ] NV-0403 Add scene morph time control
+- [x] NV-0403 Add scene morph time control
 - Scope: [main.py](main.py), [control/midi_handler.py](control/midi_handler.py)
 - Deliverable: parameterized interpolation duration for scene transitions.
 - Done when: transitions can be instant or smoothly ramped by control.
 
-- [ ] NV-0404 Define initial 10 scene presets
+- [x] NV-0404 Define initial 10 scene presets
 - Scope: scene definitions file/module, [docs/network_variance_task_checklist.md](docs/network_variance_task_checklist.md)
 - Deliverable: scene set 0..9 matching strategy names from roadmap.
 - Done when: each scene has defaults, modulation set, and safety clamps.
+- Implemented presets: 0 Calm lattice, 1 Traveling wave, 2 Pulsing islands, 3 Sparse sparks, 4 Burst storm, 5 Predator prey, 6 Small-world drift, 7 Edge-of-chaos, 8 Polyrhythm mesh, 9 Freeze then shatter.
 
-- [ ] NV-0405 Add strategy engine hooks
+- [x] NV-0405 Add strategy engine hooks
 - Scope: [main.py](main.py), optional pattern engine module
 - Deliverable: per-scene optional periodic modulation routines.
 - Done when: scenes can include static or dynamic behavior profiles.
 
-- [ ] NV-0406 Add Shift+0 to 9 scene save behavior
+- [x] NV-0406 Add Shift+0 to 9 scene save behavior
 - Scope: [main.py](main.py)
 - Deliverable: overwrite/save current state to chosen scene slot.
 - Done when: saved scene reload matches prior state within expected tolerance.
 
 ## Phase 5: Diversity Controller (Anti-lock)
 
-- [ ] NV-0501 Create diversity controller component
+- [x] NV-0501 Create diversity controller component
 - Scope: new diversity controller module, [main.py](main.py)
 - Deliverable: monitor metrics and issue corrective nudges when collapse is detected.
 - Done when: sustained high synchrony triggers bounded corrective behavior.
 
-- [ ] NV-0502 Add anti-lock enable toggle
+- [x] NV-0502 Add anti-lock enable toggle
 - Scope: [control/midi_handler.py](control/midi_handler.py), [main.py](main.py)
 - Deliverable: runtime toggle for controller enable/disable.
 - Done when: off mode has zero interventions; on mode allows interventions.
 
-- [ ] NV-0503 Add anti-lock strength parameter
+- [x] NV-0503 Add anti-lock strength parameter
 - Scope: [control/midi_handler.py](control/midi_handler.py), [main.py](main.py)
 - Deliverable: scalar controlling intervention magnitude.
 - Done when: increasing strength noticeably reduces long lock periods.
 
-- [ ] NV-0504 Add intervention safety clamps
+- [x] NV-0504 Add intervention safety clamps
 - Scope: diversity controller module
 - Deliverable: hard limits on nudges to prevent runaway instability.
 - Done when: no out-of-range parameter writes occur during stress tests.
+- Implemented in [control/diversity_controller.py](control/diversity_controller.py) with explicit clamp table and bounded per-parameter nudges.
 
 ## Phase 6: Performance Mapping and UX Polish
 
@@ -197,10 +199,11 @@ Implementation tickets derived from the roadmap in [docs/network_variance_implem
 - Deliverable: final mapping for new macros, toggles, and scene functions.
 - Done when: every new major parameter has a reachable live control path.
 
-- [ ] NV-0602 Add scene status and morph progress UI
+- [x] NV-0602 Add scene status and morph progress UI
 - Scope: [view/matrix_view.py](view/matrix_view.py)
 - Deliverable: visible active scene number/name and morph progress.
 - Done when: performer can identify current scene state at a glance.
+- Implemented scene label, strategy label, and morph progress bar in status panel.
 
 - [ ] NV-0603 Add anti-lock and diversity UI indicators
 - Scope: [view/matrix_view.py](view/matrix_view.py)

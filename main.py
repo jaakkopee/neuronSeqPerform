@@ -17,6 +17,7 @@ MIDI runs in a separate daemon thread.
 import sys
 import time
 from collections import deque
+from typing import Any
 import numpy as np
 
 import sounddevice as sd
@@ -29,8 +30,18 @@ from config import (
 )
 from model.lif_network import LIFNetwork
 from model.fm_synth    import make_synth
+from control.diversity_controller import DiversityController
 from control.midi_handler import MIDIHandler
+from control.scene_manager import SceneManager, SCENE_PARAM_KEYS
 from view.matrix_view     import MatrixView
+
+
+SCENE_KEY_TO_SLOT = {
+    pygame.K_0: 0, pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3, pygame.K_4: 4,
+    pygame.K_5: 5, pygame.K_6: 6, pygame.K_7: 7, pygame.K_8: 8, pygame.K_9: 9,
+    pygame.K_KP0: 0, pygame.K_KP1: 1, pygame.K_KP2: 2, pygame.K_KP3: 3, pygame.K_KP4: 4,
+    pygame.K_KP5: 5, pygame.K_KP6: 6, pygame.K_KP7: 7, pygame.K_KP8: 8, pygame.K_KP9: 9,
+}
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -87,6 +98,123 @@ def _compute_spike_entropy(spike_history: deque[np.ndarray]) -> float:
     return float(np.clip(np.mean(h), 0.0, 1.0))
 
 
+def _capture_scene_snapshot(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Capture only scene-relevant keys from runtime config."""
+    snapshot: dict[str, Any] = {}
+    for key in SCENE_PARAM_KEYS:
+        if key in cfg:
+            snapshot[key] = cfg[key]
+    return snapshot
+
+
+def _apply_scene_updates(
+    updates: dict[str, Any],
+    network: LIFNetwork,
+    synth,
+    midi: MIDIHandler | None,
+    cfg: dict[str, Any],
+) -> None:
+    """Apply scene-driven parameter updates to model, synth, and runtime state."""
+    if not updates:
+        return
+
+    def _set_cfg_float(key: str) -> None:
+        if key in updates:
+            cfg[key] = float(updates[key])
+
+    for k in ("tempo", "master_volume", "decay_speed", "mod_index_scale", "quantization_strength", "weight_scale", "drive_n", "swing_amount", "ratio_scale", "scene_morph_time"):
+        _set_cfg_float(k)
+
+    if "master_volume" in updates:
+        synth.master_volume = float(cfg["master_volume"])
+
+    if "active_pairs" in updates:
+        pairs = int(round(float(updates["active_pairs"])))
+        pairs = max(1, min(4, pairs))
+        synth.set_active_pairs(pairs)
+        cfg["active_pairs"] = pairs
+
+    if "decay_speed" in updates:
+        synth.set_decay_speed(float(cfg["decay_speed"]))
+    if "mod_index_scale" in updates:
+        synth.set_mod_index_scale(float(cfg["mod_index_scale"]))
+    if "ratio_scale" in updates:
+        synth.set_ratio_scale(float(cfg["ratio_scale"]))
+
+    if "topology_index" in updates:
+        network.set_topology_index(int(round(float(updates["topology_index"]))))
+    if "neuron_count" in updates:
+        ncount = network.set_neuron_count(int(round(float(updates["neuron_count"]))))
+        cfg["neuron_count"] = ncount
+
+    if "threshold" in updates:
+        network.set_threshold(float(updates["threshold"]))
+    if "tau" in updates:
+        network.set_tau(float(updates["tau"]))
+    if "weight_scale" in updates:
+        network.set_weight_scale(float(cfg["weight_scale"]))
+    if "drive_n" in updates:
+        network.set_global_drive(float(cfg["drive_n"]))
+
+    if "heterogeneity" in updates:
+        network.set_heterogeneity(float(updates["heterogeneity"]))
+    if "inhibitory_ratio" in updates:
+        network.set_inhibitory_ratio(float(updates["inhibitory_ratio"]))
+    if "inhibitory_gain" in updates:
+        network.set_inhibitory_gain(float(updates["inhibitory_gain"]))
+    if "excitatory_scale" in updates:
+        network.set_excitatory_scale(float(updates["excitatory_scale"]))
+    if "inhibitory_scale" in updates:
+        network.set_inhibitory_scale(float(updates["inhibitory_scale"]))
+    if "delay_spread_steps" in updates:
+        network.set_delay_spread_steps(int(round(float(updates["delay_spread_steps"]))))
+    if "delay_jitter" in updates:
+        network.set_delay_jitter(float(updates["delay_jitter"]))
+
+    if "adaptation_strength" in updates:
+        network.set_adaptation_strength(float(updates["adaptation_strength"]))
+    if "adaptation_decay" in updates:
+        network.set_adaptation_decay(float(updates["adaptation_decay"]))
+    if "noise_amount" in updates:
+        network.set_noise_amount(float(updates["noise_amount"]))
+    if "noise_color" in updates:
+        network.set_noise_color(updates["noise_color"])
+    if "spatial_noise" in updates:
+        network.set_spatial_noise(float(updates["spatial_noise"]))
+
+    if "lif_steps" in updates:
+        cfg["lif_steps"] = int(max(1, min(64, round(float(updates["lif_steps"])))))
+
+    root = int(cfg.get("root_note", 60))
+    if "root_note" in updates:
+        root = int(round(float(updates["root_note"])))
+        root = max(0, min(127, root))
+        cfg["root_note"] = root
+
+    scale_name = str(cfg.get("scale_name", "major"))
+    if "scale_name" in updates:
+        candidate = str(updates["scale_name"])
+        if candidate in SCALES:
+            scale_name = candidate
+            cfg["scale_name"] = candidate
+
+    if "root_note" in updates or "scale_name" in updates:
+        synth.set_all_base_freqs(_build_initial_freqs(root, scale_name))
+        network.frequencies = synth.get_operator_frequencies()
+        if midi is not None:
+            midi.root_note = root
+            midi.scale_name = scale_name
+            if scale_name in SCALE_NAMES:
+                midi.scale_idx = SCALE_NAMES.index(scale_name)
+
+    cfg["topology_index"] = network.topology_index
+    cfg["topology_name"] = network.topology_name()
+    cfg["neuron_count"] = network.neuron_count
+    cfg.update(network.heterogeneity_state())
+    cfg.update(network.phase2_state())
+    cfg.update(network.phase3_state())
+
+
 # ── main ───────────────────────────────────────────────────────────────────────
 def main() -> None:
     # ── shared runtime config (written by MIDI, read by main loop + view) ─────
@@ -139,6 +267,18 @@ def main() -> None:
         "spike_entropy":           0.0,
         "active_ratio":            0.0,
         "active_ratio_ma":         0.0,
+        "scene_index":             0,
+        "scene_name":              "Calm lattice",
+        "scene_morph_time":        1.6,
+        "scene_morph_progress":    1.0,
+        "scene_morph_active":      False,
+        "scene_strategy_name":     "static",
+        "anti_lock_enabled":       False,
+        "anti_lock_strength":      0.45,
+        "anti_lock_collapse_score": 0.0,
+        "anti_lock_last_reason":   "idle",
+        "anti_lock_last_magnitude": 0.0,
+        "anti_lock_last_nudge_time": -1.0,
     }
 
     # ── model ──────────────────────────────────────────────────────────────────
@@ -165,6 +305,11 @@ def main() -> None:
     config_state.update(network.heterogeneity_state())
     config_state.update(network.phase2_state())
     config_state.update(network.phase3_state())
+
+    scene_manager = SceneManager()
+    diversity_controller = DiversityController()
+    config_state["scene_index"] = scene_manager.active_slot
+    config_state["scene_name"] = scene_manager.scene_name()
 
     # Seed with a musical scale
     synth.set_all_base_freqs(_build_initial_freqs(60, "major"))
@@ -210,13 +355,58 @@ def main() -> None:
     sync_history   = deque(maxlen=32)
     active_ratio_history = deque(maxlen=16)
 
+    def _handle_scene_hotkeys(event: pygame.event.Event) -> bool:
+        if event.key == pygame.K_a:
+            enabled = not bool(config_state.get("anti_lock_enabled", False))
+            config_state["anti_lock_enabled"] = enabled
+            print(f"[AntiLock] {'ON' if enabled else 'OFF'}")
+            return True
+
+        if event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+            v = max(0.0, float(config_state.get("anti_lock_strength", 0.45)) - 0.05)
+            config_state["anti_lock_strength"] = v
+            print(f"[AntiLock] strength -> {v:.2f}")
+            return True
+
+        if event.key in (pygame.K_EQUALS, pygame.K_KP_PLUS):
+            v = min(1.0, float(config_state.get("anti_lock_strength", 0.45)) + 0.05)
+            config_state["anti_lock_strength"] = v
+            print(f"[AntiLock] strength -> {v:.2f}")
+            return True
+
+        slot = SCENE_KEY_TO_SLOT.get(event.key)
+        if slot is None:
+            return False
+
+        snapshot = _capture_scene_snapshot(config_state)
+        now = time.monotonic()
+
+        if event.mod & pygame.KMOD_SHIFT:
+            name = scene_manager.save_scene(slot, snapshot)
+            print(f"[Scene] Saved slot {slot} -> {name}")
+            return True
+
+        morph_time = float(config_state.get("scene_morph_time", 0.0))
+        name = scene_manager.launch_scene(slot, snapshot, now, morph_time)
+        print(f"[Scene] Launch slot {slot} ({name})  morph={morph_time:.2f}s")
+        return True
+
     # ── main loop ──────────────────────────────────────────────────────────────
     running = True
     while running:
         # ── pygame events ─────────────────────────────────────────────────────
-        running = view.handle_events()
+        running = view.handle_events(_handle_scene_hotkeys)
 
         now = time.monotonic()
+        scene_updates, scene_meta = scene_manager.tick(now)
+        if scene_updates:
+            _apply_scene_updates(scene_updates, network, synth, midi if midi_ok else None, config_state)
+        config_state.update(scene_meta)
+
+        anti_updates, anti_meta = diversity_controller.tick(now, config_state)
+        if anti_updates:
+            _apply_scene_updates(anti_updates, network, synth, midi if midi_ok else None, config_state)
+        config_state.update(anti_meta)
 
         # ── timing ────────────────────────────────────────────────────────────
         tempo  = config_state["tempo"]

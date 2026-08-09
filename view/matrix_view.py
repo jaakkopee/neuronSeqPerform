@@ -248,23 +248,46 @@ class MatrixView:
         self._screen.blit(self._fn_small.render(line3, True, TEXT_SUB), (x + 12, y + 58))
         self._screen.blit(self._fn_small.render(line4, True, TEXT_SUB), (x + 12, y + 76))
         self._screen.blit(self._fn_small.render(line5, True, TEXT_SUB), (x + 12, y + 94))
+        self._draw_scene_status(x + 12, y + 112, w - 24, cfg)
 
         top_idx = int(cfg.get("topology_index", 0))
         metric_w = 220
         metric_x = x + w - 12 - metric_w
-        metric_y = y + 120
+        metric_y = y + 136
         legend_w = max(220, metric_x - (x + 12) - 8)
 
-        self._draw_topology_legend(x + 12, y + 120, legend_w, 54, top_idx)
+        self._draw_topology_legend(x + 12, y + 136, legend_w, 54, top_idx)
         self._draw_metric_panel(metric_x, metric_y, metric_w, 54, cfg)
 
-        cheat_y = y + 178
+        cheat_y = y + 194
         hints_y = y + h - 16
         cheat_h = max(40, hints_y - 8 - cheat_y)
         self._draw_controller_cheatsheet(x + 12, cheat_y, w - 24, cheat_h, cfg)
 
         hints = "MPD218: full 3x16 pads + 3x6 knobs shown below. *AT target includes heterogeneity + phase-2 + phase-3 controls."
         self._screen.blit(self._fn_small.render(hints, True, (116, 184, 232)), (x + 12, hints_y))
+
+    def _draw_scene_status(self, x: int, y: int, w: int, cfg: dict) -> None:
+        scene_idx = int(cfg.get("scene_index", 0))
+        scene_name = str(cfg.get("scene_name", "-"))
+        strategy = str(cfg.get("scene_strategy_name", "static"))
+        morph = float(np.clip(float(cfg.get("scene_morph_progress", 1.0)), 0.0, 1.0))
+        morph_active = bool(cfg.get("scene_morph_active", False))
+
+        title = f"Scene {scene_idx}: {scene_name}"
+        if strategy:
+            title += f"  [{strategy}]"
+        self._screen.blit(self._fn_small.render(title, True, TEXT_MAIN), (x, y))
+
+        bar_w = min(220, max(120, w // 4))
+        bx = x + w - bar_w
+        by = y + 2
+        pygame.draw.rect(self._screen, (30, 44, 70), (bx, by, bar_w, 10), border_radius=3)
+        fill_w = max(1, int(bar_w * morph))
+        fill_c = (250, 214, 120) if morph_active else (138, 236, 166)
+        pygame.draw.rect(self._screen, fill_c, (bx, by, fill_w, 10), border_radius=3)
+        morph_txt = f"Morph {int(round(morph * 100.0)):3d}%"
+        self._screen.blit(self._fn_small.render(morph_txt, True, TEXT_SUB), (bx, by + 12))
 
     def _draw_metric_panel(self, x: int, y: int, w: int, h: int, cfg: dict) -> None:
         pygame.draw.rect(self._screen, (14, 24, 44), (x, y, w, h), border_radius=6)
@@ -470,11 +493,16 @@ class MatrixView:
             for p in pts:
                 node(*p)
 
-    def handle_events(self) -> bool:
+    def handle_events(self, keydown_handler=None) -> bool:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN:
+                handled = False
+                if keydown_handler is not None:
+                    handled = bool(keydown_handler(event))
+                if handled:
+                    continue
                 if event.key == pygame.K_F11:
                     self._toggle_fullscreen()
                 elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and (event.mod & pygame.KMOD_ALT):
