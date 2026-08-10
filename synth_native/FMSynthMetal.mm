@@ -108,8 +108,8 @@ struct FMSynth::Impl {
     float mod_index_scale = 0.25f;
     float per_buf_carrier = 0.9286f;
     float per_buf_mod     = 0.8700f;
-    float env_attack_carrier = 0.35f;
-    float env_attack_mod     = 0.45f;
+    float env_attack_carrier = 0.08f;  // ~280ms attack to prevent crackles from many neurons
+    float env_attack_mod     = 0.08f;  // ~280ms attack to prevent crackles from many neurons
     int   active_pairs    = 2;
     float master_volume   = 0.5f;
     float last_output_sample = 0.0f;

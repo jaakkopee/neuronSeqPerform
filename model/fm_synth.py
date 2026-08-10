@@ -154,6 +154,11 @@ class FMSynth:
             # ── neuron-driven amplitude envelope  (NUM_OPERATORS × COLS) ──────────
             # Zero at start; trigger_and_activate() gates it from spike state.
             self._env = np.zeros((NUM_OPERATORS, COLS), np.float64)
+            
+            # ── envelope attack targets (smooth ramping instead of instant jumps) ──
+            # When spike fires, env ramps toward target over attack_time
+            self._env_target = np.zeros((NUM_OPERATORS, COLS), np.float64)
+            self._attack_rate = 0.08  # per-buffer ramp rate toward target (~280ms attack)
 
             # ── per-voice crossfade gain (enables click-free voice transitions) ───
             # Ramped linearly within each audio buffer: 0.0 = silent, 1.0 = full.
@@ -206,15 +211,15 @@ class FMSynth:
 
     def trigger_and_activate(self, accumulated_spikes: np.ndarray, col: int) -> None:
             """
-            Atomically switch the active voice AND gate the envelope from spikes.
-            Using one lock acquisition ensures the audio callback never sees a
-            mismatch between voice_active and env state, eliminating click sources.
+            Atomically switch the active voice AND set envelope targets from spikes.
+            Envelopes will ramp smoothly toward targets during synthesis (attack phase).
             """
             with self._lock:
                 self._voice_active[:] = False
                 self._voice_active[col] = True
                 self._active_step = col
-                self._env[:, col] = accumulated_spikes[:, col].astype(np.float64)
+                # Set target; envelope will ramp toward it during generate()
+                self._env_target[:, col] = accumulated_spikes[:, col].astype(np.float64)
 
     # ── display info ──────────────────────────────────────────────────────────
     def get_operator_frequencies(self) -> np.ndarray:
@@ -259,25 +264,28 @@ class FMSynth:
     def generate(self, frames: int) -> np.ndarray:
             """
             Render `frames` mono samples.  Returns float32 array of length `frames`.
-
-            Intentionally lock-free.  Holding self._lock here would stall the
-            callback whenever the main or MIDI thread updates a parameter, causing
-            buffer underruns and audible clicks.  The only mutable arrays written
-            exclusively by this method are _phases (no contention).  The rare race
-            on _env/_voice_gain from trigger_and_activate is inaudible because it
-            only occurs when the voice gain is near 0 (start/end of a step).
+            
+            Snapshots voice_active and envelope state atomically at the start to avoid
+            races with trigger_and_activate() from the main thread. This prevents
+            amplitude discontinuities when voices switch mid-buffer.
             """
+            # Atomically snapshot state to avoid races with trigger_and_activate()
+            with self._lock:
+                voice_active_snapshot = self._voice_active.copy()
+                env_snapshot = self._env.copy()
+                env_target_snapshot = self._env_target.copy()
+                voice_gain_snapshot = self._voice_gain.copy()
+            
             output = np.zeros(frames, np.float64)
             n      = np.arange(frames, dtype=np.float64)
 
             for col in range(COLS):
                 # ── voice crossfade gain ───────────────────────────────────────
-                gain_start = self._voice_gain[col]
-                gain_end   = float(np.clip(
-                    1.0 if self._voice_active[col] else 0.0,
-                    gain_start - 1.0,
-                    gain_start + 1.0))
-                self._voice_gain[col] = gain_end
+                # Smooth exponential approach to target gain (200ms smooth crossfade)
+                gain_start = voice_gain_snapshot[col]
+                target_gain = 1.0 if voice_active_snapshot[col] else 0.0
+                gain_end = gain_start + (target_gain - gain_start) * 0.2
+                self._voice_gain[col] = gain_end  # Update for next buffer
 
                 if gain_start == 0.0 and gain_end == 0.0:
                     continue
@@ -295,10 +303,21 @@ class FMSynth:
                     if f_car <= 0.0:
                         continue
 
-                    env_c0 = self._env[c_op, col]
-                    env_m0 = self._env[m_op, col]
-                    env_c1 = env_c0 * self._per_buf_carrier
-                    env_m1 = env_m0 * self._per_buf_mod
+                    # ── smooth envelope attack toward target ──────────────────────
+                    # Ramp envelope from current value toward spike target.
+                    # This prevents clicks from instant gate-on when many operators
+                    # fire simultaneously.
+                    env_c0 = env_snapshot[c_op, col]
+                    env_c_target = env_target_snapshot[c_op, col]
+                    env_c1 = env_c0 + (env_c_target - env_c0) * self._attack_rate
+                    
+                    env_m0 = env_snapshot[m_op, col]
+                    env_m_target = env_target_snapshot[m_op, col]
+                    env_m1 = env_m0 + (env_m_target - env_m0) * self._attack_rate
+                    
+                    # After attack ramp, apply decay for sustain phase
+                    env_c1 = env_c1 * self._per_buf_carrier
+                    env_m1 = env_m1 * self._per_buf_mod
 
                     level_ramp = (self._levels[col, c_op]
                                   * np.linspace(env_c0, env_c1, frames))
