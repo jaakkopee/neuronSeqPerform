@@ -442,7 +442,9 @@ def main() -> None:
             if accumulated is None:
                 continue
 
-            synth_spikes = network.get_synth_spikes(ROWS, COLS)
+            # Downmix accumulated spikes (all micro-steps) instead of just the latest step.
+            # This ensures FM synth trigger matches the LIF's cumulative activity.
+            synth_spikes = network.get_synth_spikes(ROWS, COLS, spike_array=accumulated)
             sync_history.append(synth_spikes.reshape(-1).astype(np.float32, copy=False))
             config_state["synchrony_index"] = _compute_synchrony_index(sync_history)
             config_state["spike_entropy"] = _compute_spike_entropy(sync_history)

@@ -349,9 +349,10 @@ void FMSynth::generate(float* output, int frames) {
 
                 float gs     = d.voice_gain[col];
                 float target = d.voice_active[col] ? 1.0f : 0.0f;
-                float ge     = (target > gs)
-                               ? std::min(1.0f, gs + 1.0f)
-                               : std::max(0.0f, gs - 1.0f);
+                // Smooth voice crossfade: ramp at 0.2 per buffer (200ms to fully switch)
+                // This prevents zipper clicks when switching between voices.
+                const float voice_ramp_rate = 0.2f;
+                float ge = gs + (target - gs) * voice_ramp_rate;
                 d.voice_gain[col] = ge;
 
                 vp.gain_start = gs;

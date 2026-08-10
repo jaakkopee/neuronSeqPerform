@@ -180,9 +180,13 @@ class LIFNetwork:
         self._pack_fallback_views()
         return self._potentials
 
-    def get_synth_spikes(self, target_rows: int = SYNTH_ROWS, target_cols: int = SYNTH_COLS) -> np.ndarray:
-        """Downmix/pool the dynamic LIF field into synth operator grid size."""
-        src = self._spikes
+    def get_synth_spikes(self, target_rows: int = SYNTH_ROWS, target_cols: int = SYNTH_COLS, spike_array: np.ndarray | None = None) -> np.ndarray:
+        """Downmix/pool the dynamic LIF field into synth operator grid size.
+        
+        If spike_array is provided, downmix that instead of self._spikes.
+        This allows downmixing accumulated spikes across multiple micro-steps.
+        """
+        src = spike_array if spike_array is not None else self._spikes
         src_rows, src_cols = src.shape
         out = np.zeros((target_rows, target_cols), dtype=bool)
 
