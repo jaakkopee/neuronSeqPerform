@@ -17,6 +17,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 // ── Metal shader source (embedded) ────────────────────────────────────────────
 static constexpr const char* SHADER_SRC = R"MSL(
@@ -80,9 +81,10 @@ struct FMSynth::Impl {
     id<MTLDevice>               device     = nil;
     id<MTLCommandQueue>         cmdQueue   = nil;
     id<MTLComputePipelineState> pipeline   = nil;
-    id<MTLBuffer>               outputBuf  = nil;
-    id<MTLBuffer>               voicesBuf  = nil;
-    id<MTLBuffer>               genParBuf  = nil;
+    id<MTLBuffer>               outputBuf[2]  = {nil, nil};
+    id<MTLBuffer>               voicesBuf[2]  = {nil, nil};
+    id<MTLBuffer>               genParBuf[2]  = {nil, nil};
+    id<MTLCommandBuffer>        inFlightCmd[2] = {nil, nil};
 
     int   sr;
     int   max_frames;
@@ -112,6 +114,12 @@ struct FMSynth::Impl {
     float master_volume   = 0.5f;
     float last_output_sample = 0.0f;
     int   output_declick_samples = 24;
+    bool  slotBusy[2] = {false, false};
+    bool  slotHadError[2] = {false, false};
+    int   inFlightFrames[2] = {0, 0};
+    int   pendingSlots[2] = {-1, -1};
+    int   pendingCount = 0;
+    std::vector<float> last_good_output;
 
     void init_metal();
     void recompute_freqs();
@@ -151,9 +159,19 @@ void FMSynth::Impl::init_metal() {
         const NSUInteger parBytes    = sizeof(GenParams);
 
         const MTLResourceOptions shm = MTLResourceStorageModeShared;
-        outputBuf = [device newBufferWithLength:outBytes    options:shm];
-        voicesBuf = [device newBufferWithLength:voicesBytes options:shm];
-        genParBuf = [device newBufferWithLength:parBytes    options:shm];
+        for (int i = 0; i < 2; ++i) {
+            outputBuf[i] = [device newBufferWithLength:outBytes    options:shm];
+            voicesBuf[i] = [device newBufferWithLength:voicesBytes options:shm];
+            genParBuf[i] = [device newBufferWithLength:parBytes    options:shm];
+            inFlightCmd[i] = nil;
+            slotBusy[i] = false;
+            slotHadError[i] = false;
+            inFlightFrames[i] = 0;
+        }
+        pendingSlots[0] = -1;
+        pendingSlots[1] = -1;
+        pendingCount = 0;
+        last_good_output.clear();
     }
 }
 
@@ -244,99 +262,188 @@ void FMSynth::generate(float* output, int frames) {
     @autoreleasepool {
         auto& d = *impl_;
 
-        // ── 1. Build VoiceParams for the GPU (CPU, ~5 µs) ────────────────────
-        auto* vp_arr = static_cast<VoiceParams*>(d.voicesBuf.contents);
-        const float env_release_carrier = std::clamp(1.0f - d.per_buf_carrier, 0.001f, 1.0f);
-        const float env_release_mod     = std::clamp(1.0f - d.per_buf_mod, 0.001f, 1.0f);
+        if (frames <= 0) {
+            return;
+        }
 
-        for (int col = 0; col < COLS; ++col) {
-            VoiceParams& vp = vp_arr[col];
+        const int req_frames = frames;
+        const int render_frames = std::min(req_frames, d.max_frames);
 
-            // Voice crossfade gain ramp
-            float gs     = d.voice_gain[col];
-            float target = d.voice_active[col] ? 1.0f : 0.0f;
-            float ge     = (target > gs)
-                           ? std::min(1.0f, gs + 1.0f)
-                           : std::max(0.0f, gs - 1.0f);
-            d.voice_gain[col] = ge;
+        auto is_pending = [&](int slot) -> bool {
+            for (int i = 0; i < d.pendingCount; ++i) {
+                if (d.pendingSlots[i] == slot) return true;
+            }
+            return false;
+        };
 
-            vp.gain_start = gs;
-            vp.gain_end   = ge;
-            vp.n_pairs    = (gs == 0.0f && ge == 0.0f) ? 0u
-                            : static_cast<uint32_t>(d.active_pairs);
-            vp._pad       = 0.0f;
+        auto pop_pending_front = [&]() {
+            if (d.pendingCount <= 0) return;
+            d.pendingSlots[0] = d.pendingSlots[1];
+            d.pendingSlots[1] = -1;
+            d.pendingCount -= 1;
+        };
 
-            for (int pair = 0; pair < d.active_pairs; ++pair) {
-                const int c_op = pair * 2;
-                const int m_op = pair * 2 + 1;
-                PairParams& pp = vp.pairs[pair];
-
-                pp.freq_c = d.frequencies[col][c_op];
-                pp.freq_m = d.frequencies[col][m_op];
-
-                const float ec0 = d.env[c_op][col];
-                const float em0 = d.env[m_op][col];
-                const float tc  = d.env_target[c_op][col];
-                const float tm  = d.env_target[m_op][col];
-                const float ec_alpha = (tc > ec0) ? d.env_attack_carrier : env_release_carrier;
-                const float em_alpha = (tm > em0) ? d.env_attack_mod : env_release_mod;
-                const float ec1 = ec0 + (tc - ec0) * ec_alpha;
-                const float em1 = em0 + (tm - em0) * em_alpha;
-
-                pp.level_start = d.levels[col][c_op] * ec0;
-                pp.level_end   = d.levels[col][c_op] * ec1;
-                pp.mi_start    = d.mod_idx[col][m_op] * d.mod_index_scale * em0;
-                pp.mi_end      = d.mod_idx[col][m_op] * d.mod_index_scale * em1;
-                pp.phase_c     = d.phases[col][c_op];
-                pp.phase_m     = d.phases[col][m_op];
-
-                // Commit decayed env + advanced phases (CPU, used next buffer)
-                d.env[c_op][col] = ec1;
-                d.env[m_op][col] = em1;
-
-                constexpr float TWO_PI = 6.283185307f;
-                d.phases[col][c_op] =
-                    std::fmod(d.phases[col][c_op]
-                              + TWO_PI * pp.freq_c / d.sr * frames, TWO_PI);
-                d.phases[col][m_op] =
-                    std::fmod(d.phases[col][m_op]
-                              + TWO_PI * pp.freq_m / d.sr * frames, TWO_PI);
+        // Poll completion state for submitted renders without blocking.
+        for (int slot = 0; slot < 2; ++slot) {
+            if (!d.slotBusy[slot]) continue;
+            id<MTLCommandBuffer> cmd = d.inFlightCmd[slot];
+            if (!cmd) {
+                d.slotBusy[slot] = false;
+                d.slotHadError[slot] = true;
+                continue;
+            }
+            const MTLCommandBufferStatus st = cmd.status;
+            if (st == MTLCommandBufferStatusCompleted) {
+                d.slotBusy[slot] = false;
+                d.slotHadError[slot] = false;
+                d.inFlightCmd[slot] = nil;
+            } else if (st == MTLCommandBufferStatusError) {
+                d.slotBusy[slot] = false;
+                d.slotHadError[slot] = true;
+                d.inFlightCmd[slot] = nil;
             }
         }
 
-        // ── 2. GenParams ──────────────────────────────────────────────────────
-        auto* gp   = static_cast<GenParams*>(d.genParBuf.contents);
-        gp->inv_sr         = 1.0f / static_cast<float>(d.sr);
-        gp->master_volume  = d.master_volume;
-        gp->n_frames       = static_cast<uint32_t>(frames);
-        gp->_pad           = 0;
+        bool produced = false;
 
-        // ── 3. Dispatch Metal compute shader (GPU, ~20-50 µs on M-series) ─────
-        id<MTLCommandBuffer>         cmdbuf  = [d.cmdQueue commandBuffer];
-        id<MTLComputeCommandEncoder> encoder = [cmdbuf computeCommandEncoder];
+        // Consume the oldest finished slot (one-buffer latency pipeline).
+        if (d.pendingCount > 0) {
+            const int readSlot = d.pendingSlots[0];
+            if (!d.slotBusy[readSlot]) {
+                const bool badSlot = d.slotHadError[readSlot];
+                const int rendered = std::max(0, d.inFlightFrames[readSlot]);
+                if (!badSlot && rendered > 0) {
+                    const int ncopy = std::min(req_frames, rendered);
+                    std::memcpy(output,
+                                [d.outputBuf[readSlot] contents],
+                                static_cast<std::size_t>(ncopy) * sizeof(float));
+                    if (ncopy < req_frames) {
+                        std::memset(output + ncopy,
+                                    0,
+                                    static_cast<std::size_t>(req_frames - ncopy) * sizeof(float));
+                    }
+                    produced = true;
+                }
+                d.slotHadError[readSlot] = false;
+                pop_pending_front();
+            }
+        }
 
-        [encoder setComputePipelineState:d.pipeline];
-        [encoder setBuffer:d.outputBuf  offset:0 atIndex:0];
-        [encoder setBuffer:d.voicesBuf  offset:0 atIndex:1];
-        [encoder setBuffer:d.genParBuf  offset:0 atIndex:2];
+        // Choose a free slot for next async submission.
+        int submitSlot = -1;
+        for (int slot = 0; slot < 2; ++slot) {
+            if (!d.slotBusy[slot] && !is_pending(slot)) {
+                submitSlot = slot;
+                break;
+            }
+        }
 
-        const NSUInteger maxTG = d.pipeline.maxTotalThreadsPerThreadgroup;
-        const NSUInteger tgSz  = std::min(maxTG, static_cast<NSUInteger>(frames));
-        [encoder dispatchThreads:MTLSizeMake(frames, 1, 1)
-         threadsPerThreadgroup:MTLSizeMake(tgSz, 1, 1)];
-        [encoder endEncoding];
+        if (submitSlot >= 0 && render_frames > 0) {
+            // ── 1. Build VoiceParams for the GPU (CPU, ~5 µs) ───────────────
+            auto* vp_arr = static_cast<VoiceParams*>([d.voicesBuf[submitSlot] contents]);
+            const float env_release_carrier = std::clamp(1.0f - d.per_buf_carrier, 0.001f, 1.0f);
+            const float env_release_mod     = std::clamp(1.0f - d.per_buf_mod, 0.001f, 1.0f);
 
-        [cmdbuf commit];
-        [cmdbuf waitUntilCompleted];   // ~30-80 µs total on Apple Silicon
+            for (int col = 0; col < COLS; ++col) {
+                VoiceParams& vp = vp_arr[col];
 
-        // ── 4. Copy result (shared memory = no actual copy on Apple Silicon) ──
-        std::memcpy(output,
-                    d.outputBuf.contents,
-                    static_cast<std::size_t>(frames) * sizeof(float));
+                float gs     = d.voice_gain[col];
+                float target = d.voice_active[col] ? 1.0f : 0.0f;
+                float ge     = (target > gs)
+                               ? std::min(1.0f, gs + 1.0f)
+                               : std::max(0.0f, gs - 1.0f);
+                d.voice_gain[col] = ge;
+
+                vp.gain_start = gs;
+                vp.gain_end   = ge;
+                vp.n_pairs    = (gs == 0.0f && ge == 0.0f) ? 0u
+                                : static_cast<uint32_t>(d.active_pairs);
+                vp._pad       = 0.0f;
+
+                for (int pair = 0; pair < d.active_pairs; ++pair) {
+                    const int c_op = pair * 2;
+                    const int m_op = pair * 2 + 1;
+                    PairParams& pp = vp.pairs[pair];
+
+                    pp.freq_c = d.frequencies[col][c_op];
+                    pp.freq_m = d.frequencies[col][m_op];
+
+                    const float ec0 = d.env[c_op][col];
+                    const float em0 = d.env[m_op][col];
+                    const float tc  = d.env_target[c_op][col];
+                    const float tm  = d.env_target[m_op][col];
+                    const float ec_alpha = (tc > ec0) ? d.env_attack_carrier : env_release_carrier;
+                    const float em_alpha = (tm > em0) ? d.env_attack_mod : env_release_mod;
+                    const float ec1 = ec0 + (tc - ec0) * ec_alpha;
+                    const float em1 = em0 + (tm - em0) * em_alpha;
+
+                    pp.level_start = d.levels[col][c_op] * ec0;
+                    pp.level_end   = d.levels[col][c_op] * ec1;
+                    pp.mi_start    = d.mod_idx[col][m_op] * d.mod_index_scale * em0;
+                    pp.mi_end      = d.mod_idx[col][m_op] * d.mod_index_scale * em1;
+                    pp.phase_c     = d.phases[col][c_op];
+                    pp.phase_m     = d.phases[col][m_op];
+
+                    d.env[c_op][col] = ec1;
+                    d.env[m_op][col] = em1;
+
+                    constexpr float TWO_PI = 6.283185307f;
+                    d.phases[col][c_op] =
+                        std::fmod(d.phases[col][c_op]
+                                  + TWO_PI * pp.freq_c / d.sr * render_frames, TWO_PI);
+                    d.phases[col][m_op] =
+                        std::fmod(d.phases[col][m_op]
+                                  + TWO_PI * pp.freq_m / d.sr * render_frames, TWO_PI);
+                }
+            }
+
+            // ── 2. GenParams ────────────────────────────────────────────────
+            auto* gp = static_cast<GenParams*>([d.genParBuf[submitSlot] contents]);
+            gp->inv_sr         = 1.0f / static_cast<float>(d.sr);
+            gp->master_volume  = d.master_volume;
+            gp->n_frames       = static_cast<uint32_t>(render_frames);
+            gp->_pad           = 0;
+
+            // ── 3. Dispatch asynchronously (do not wait here) ───────────────
+            id<MTLCommandBuffer> cmdbuf = [d.cmdQueue commandBuffer];
+            id<MTLComputeCommandEncoder> encoder = [cmdbuf computeCommandEncoder];
+
+            [encoder setComputePipelineState:d.pipeline];
+            [encoder setBuffer:d.outputBuf[submitSlot] offset:0 atIndex:0];
+            [encoder setBuffer:d.voicesBuf[submitSlot] offset:0 atIndex:1];
+            [encoder setBuffer:d.genParBuf[submitSlot] offset:0 atIndex:2];
+
+            const NSUInteger maxTG = d.pipeline.maxTotalThreadsPerThreadgroup;
+            const NSUInteger tgSz  = std::min(maxTG, static_cast<NSUInteger>(render_frames));
+            [encoder dispatchThreads:MTLSizeMake(render_frames, 1, 1)
+             threadsPerThreadgroup:MTLSizeMake(tgSz, 1, 1)];
+            [encoder endEncoding];
+
+            [cmdbuf commit];
+
+            d.inFlightCmd[submitSlot] = cmdbuf;
+            d.slotBusy[submitSlot] = true;
+            d.slotHadError[submitSlot] = false;
+            d.inFlightFrames[submitSlot] = render_frames;
+            if (d.pendingCount < 2) {
+                d.pendingSlots[d.pendingCount++] = submitSlot;
+            }
+        }
+
+        if (!produced) {
+            if (static_cast<int>(d.last_good_output.size()) == req_frames) {
+                std::memcpy(output,
+                            d.last_good_output.data(),
+                            static_cast<std::size_t>(req_frames) * sizeof(float));
+            } else {
+                std::memset(output, 0, static_cast<std::size_t>(req_frames) * sizeof(float));
+            }
+            return;
+        }
 
         // De-click envelope at audio block boundaries to suppress zipper clicks.
-        if (frames > 0) {
-            const int n = std::min(frames, std::max(1, d.output_declick_samples));
+        if (req_frames > 0) {
+            const int n = std::min(req_frames, std::max(1, d.output_declick_samples));
             if (n > 1) {
                 const float prev = d.last_output_sample;
                 for (int i = 0; i < n; ++i) {
@@ -346,7 +453,8 @@ void FMSynth::generate(float* output, int frames) {
             } else {
                 output[0] = 0.5f * output[0] + 0.5f * d.last_output_sample;
             }
-            d.last_output_sample = output[frames - 1];
+            d.last_output_sample = output[req_frames - 1];
+            d.last_good_output.assign(output, output + req_frames);
         }
     }
 }
