@@ -124,9 +124,18 @@ where $r_{\text{op}}$ is the preset ratio and $r_{\text{scale}}$ is a global tun
 
 ### Modulation Index Scaling
 
-$$I_{\text{effective}} = \texttt{mod\_idx}[\text{col}][\text{op}] \times \texttt{mod\_index\_scale} \times e_m$$
+In each carrier/modulator pair the modulation index is taken from the **modulator operator** (`m_op`), not the carrier:
 
-where $e_m$ is the modulator envelope value (0–1).
+$$I_{\text{effective}} = \texttt{mod\_idx}[\text{col}][m\_\text{op}] \times \texttt{mod\_index\_scale} \times e_m$$
+
+where $m\_\text{op}$ is the modulator operator index in the pair and $e_m$ is the modulator envelope value (0–1).
+
+This matches the `PairParams` construction in the CPU pipeline:
+
+```
+pp.mi_start = mod_idx[col][m_op] * mod_index_scale * em_old
+pp.mi_end   = mod_idx[col][m_op] * mod_index_scale * em_new
+```
 
 ### Voice Sum and Limiting
 
