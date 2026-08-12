@@ -148,7 +148,7 @@ flowchart TD
         POLL[Poll GPU slot completion]
         READ[Read completed slot → copy to output]
         BUILD[Build VoiceParams for 16 voices]
-        ENV[Update envelopes &amp; phases]
+        ENV[Update envelopes & phases]
         GPAR[Fill GenParams]
         DISPATCH[Commit Metal command buffer\nasync, non-blocking]
     end
@@ -317,7 +317,7 @@ kernel fm_generate(output[], voices[], gp):
     if gid >= gp.n_frames: return
 
     t      = float(gid)                          # sample index
-    t_norm = t / (n_frames - 1)                  # 0.0 → 1.0 across buffer
+    t_norm = t / n_frames                        # 0.0 → 1.0 across buffer
 
     sample = 0.0
 
@@ -355,18 +355,18 @@ kernel fm_generate(output[], voices[], gp):
 
 ```mermaid
 flowchart LR
-    T[t = gid\nt_norm = gid/N]
+    T[t = gid<br/>t_norm = gid/N]
 
     subgraph Voice_v["Voice v  (repeated ×16)"]
-        G["gain = mix(gain_start, gain_end, t_norm)"]
+        G["gain = mix<br/>(gain_start, gain_end, t_norm)"]
 
         subgraph Pair_p["Pair p  (repeated × n_pairs)"]
-            PC["φ_c = phase_c + 2π·f_c·inv_sr·t"]
-            PM["φ_m = phase_m + 2π·f_m·inv_sr·t"]
-            IL["level = mix(level_start, level_end, t_norm)"]
-            IM["MI = mix(mi_start, mi_end, t_norm)"]
+            PC["φ_c = phase_c<br/>+ 2π·f_c·inv_sr·t"]
+            PM["φ_m = phase_m<br/>+ 2π·f_m·inv_sr·t"]
+            IL["level = mix<br/>(level_start, level_end, t_norm)"]
+            IM["MI = mix<br/>(mi_start, mi_end, t_norm)"]
             MOD["mod = sin(φ_m)"]
-            FM["s = level · sin(φ_c + MI·mod)"]
+            FM["s = level · sin<br/>(φ_c + MI·mod)"]
         end
 
         NORM["voice_sum / n_pairs"]
@@ -374,11 +374,15 @@ flowchart LR
     end
 
     SUM["sample = Σ voices"]
-    CLIP["tanh(sample × 0.7) × master_volume"]
+    CLIP["tanh(sample × 0.7)<br/>× master_volume"]
     OUT["output[gid]"]
 
-    T --> PC & PM & IL & IM
-    PC & PM & IL & IM --> MOD --> FM
+    T --> PC & PM
+    T --> IL & IM
+    PC --> FM
+    PM --> MOD --> FM
+    IL --> FM
+    IM --> FM
     FM --> NORM --> VSCALE --> SUM
     SUM --> CLIP --> OUT
 ```
@@ -403,10 +407,10 @@ interpolated per-sample, so the amplitude ramp is smooth across the whole buffer
 
 ```mermaid
 graph LR
-    TR[trigger_and_activate\nsets env_target] --> EA[Attack α]
-    EA --> ENV[env IIR filter\ne += α·(target-e)]
-    ENV --> ES[env_start / env_end\nsent to GPU]
-    DS[set_decay_speed\nsets per_buf_carrier/mod] --> ER[Release α = 1 - per_buf]
+    TR[trigger_and_activate<br/>sets env_target] --> EA[Attack α]
+    EA --> ENV[env IIR filter<br/>e += α·(target-e)]
+    ENV --> ES[env_start / env_end<br/>sent to GPU]
+    DS[set_decay_speed<br/>sets per_buf_carrier/mod] --> ER[Release α = 1 - per_buf]
     ER --> ENV
 ```
 
