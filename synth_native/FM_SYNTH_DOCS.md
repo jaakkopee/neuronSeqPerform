@@ -19,6 +19,7 @@ diagrams, and the relevant mathematics.
 8. [Phase Accumulation](#8-phase-accumulation)
 9. [Output Post-Processing](#9-output-post-processing)
 10. [Parameter Reference](#10-parameter-reference)
+11. [LIFNetworkNative Python Bindings](#11-lifnetworknative-python-bindings)
 
 ---
 
@@ -485,7 +486,57 @@ where $y_{\text{prev}}$ is the last sample of the previous block.
 | `set_decay_speed(s)` | — | 0 = sustain, 1 = staccato |
 | `set_ratio_scale(r)` | 1.0 | Transposes all operator frequencies |
 | `set_base_freq(col, f)` | C4 | Root frequency for one voice |
+| `set_all_base_freqs(freqs)` | — | Set all 16 voice root frequencies at once (length-16 array) |
 | `load_preset(col, ...)` | — | Set ratios, levels, mod-indices |
 | `trigger_and_activate(...)` | — | Gate voice and set envelope targets |
+| `set_operator_gains(col, gains)` | — | Override per-operator amplitude levels for one column from neuron activation (length NUM_OPS array, 0.0–1.0) |
+| `get_operator_frequencies()` | — | Return current operator frequencies as (NUM_OPS × COLS) float32 array |
 | `env_attack_carrier/mod` | 0.08 | Attack smoothing coefficient (~280ms) |
 | `output_declick_samples` | 24 | Crossfade length at block boundaries |
+
+---
+
+## 11. LIFNetworkNative Python Bindings
+
+`LIFNetworkNative` (exposed as `_fm_synth.LIFNetwork`) is the Metal-backed native implementation of the LIF neural network. It mirrors the pure-NumPy `LIFNetwork` interface in `model/lif_network.py` and is used automatically when the native extension is available.
+
+### Constants
+
+| Symbol | Default | Meaning |
+|--------|---------|---------|
+| `neuron_count` | 512 | Number of LIF neurons |
+| `cols` | 16 | Sequencer columns (fixed) |
+
+### Topology Indices
+
+| Index | Name |
+|-------|------|
+| 0 | Ring |
+| 1 | FullyConnected |
+| 2 | Feedforward |
+| 3 | SparseRandom |
+| 4 | SmallWorld |
+
+### Method Reference
+
+| Method | Description |
+|--------|-------------|
+| `LIFNetwork(neuron_count, cols)` | Construct a Metal-backed LIF network |
+| `set_topology(index)` | Switch network wiring topology (see table above) |
+| `topology()` | Return current topology index |
+| `set_neuron_count(n)` | Resize the network; resets all state |
+| `neuron_count()` | Return current neuron count |
+| `rows()` | Return row count of the spike/potential grid |
+| `cols()` | Return column count (always 16) |
+| `set_threshold(v)` | Firing threshold (lower = more spikes) |
+| `set_tau(ms)` | Membrane time constant in milliseconds |
+| `set_refractory_ms(ms)` | Refractory period in milliseconds |
+| `set_weight_scale(s)` | Scale all inter-neuron synaptic weights |
+| `set_global_drive(d)` | External bias current applied to every neuron |
+| `set_external_drive(values)` | Per-neuron external drive override (length-`neuron_count` float32 array) |
+| `set_neuron_drive(row, col, v)` | Set drive for a single neuron |
+| `randomize_weights()` | Randomise the synaptic weight matrix (keeps current topology) |
+| `reset_state()` | Zero membrane potentials and spike history |
+| `step()` | Advance the simulation by one time step |
+| `get_spikes()` | Return spike matrix as (rows × cols) float32 array |
+| `get_potentials()` | Return membrane potential matrix as (rows × cols) float32 array |
