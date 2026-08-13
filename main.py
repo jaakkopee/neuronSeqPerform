@@ -58,6 +58,42 @@ def _build_initial_freqs(root_midi: int = 60, scale_name: str = "major") -> list
     return freqs
 
 
+def _get_dominant_tone_freqs(accumulated_spikes: np.ndarray, 
+                              root_midi: int, 
+                              scale_name: str) -> np.ndarray:
+    """
+    For each column, find the most active neuron (row) and map it to a scale degree.
+    Returns frequencies for all 16 columns based on dominant neuron activity.
+    
+    Row indices 0-7 map to scale degrees 0-7 (mod scale length).
+    Column index determines octave (same as original static mapping).
+    """
+    scale = SCALES[scale_name]
+    root_freq = 440.0 * (2.0 ** ((root_midi - 69) / 12.0))
+    
+    freqs = np.zeros(COLS, dtype=np.float32)
+    
+    for col in range(COLS):
+        # Count spikes per row in this column
+        row_spike_counts = accumulated_spikes[:, col] if accumulated_spikes.shape[1] > col else np.array([])
+        
+        if len(row_spike_counts) == 0 or np.sum(row_spike_counts) == 0:
+            # No activity: use default mapping (column index)
+            degree = col % len(scale)
+            octave = col // len(scale)
+        else:
+            # Most active row determines the scale degree
+            dominant_row = int(np.argmax(row_spike_counts))
+            degree = dominant_row % len(scale)
+            # Octave determined by column position (keeps consistent register)
+            octave = col // len(scale)
+        
+        semitone = scale[degree] + octave * 12
+        freqs[col] = root_freq * (2.0 ** (semitone / 12.0))
+    
+    return freqs
+
+
 def _compute_synchrony_index(spike_history: deque[np.ndarray]) -> float:
     """Return a bounded synchrony score in [0, 1] from recent spike frames.
 
@@ -453,6 +489,13 @@ def main() -> None:
             active_ratio_history.append(active_ratio)
             config_state["active_ratio"] = active_ratio
             config_state["active_ratio_ma"] = float(np.mean(active_ratio_history))
+
+            # ── Update frequencies based on most-active neuron per column ─────
+            # Map dominant neuron index (0-7) to scale degree for dynamic tone mapping
+            root = int(config_state.get("root_note", 60))
+            scale_name = str(config_state.get("scale_name", "major"))
+            dominant_freqs = _get_dominant_tone_freqs(accumulated, root, scale_name)
+            synth.set_all_base_freqs(dominant_freqs)
 
             # ── atomically activate voice + gate env from spikes ──────────────
             synth.trigger_and_activate(synth_spikes, current_step)
