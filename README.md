@@ -216,23 +216,25 @@ Pads select the **root pitch class** (C–D♯ mapped from the 16 pads). Velocit
 |---|---|---|
 | Pad 1–16 | 36–51 | Set root note (pitch class of pad, octave 4) |
 
-### Pad Bank B — Scale / Mode Selection (notes 52–67, channel 10)
+### Pad Bank B — Scale / Mode Selection and Octave Control (notes 52–67, channel 10)
 
-Each pad selects one of the 10 available scales:
+Pads 1–10 select one of the 10 available scales. Pads 11–12 shift the octave down or up (±1 per press, range −2 to +2):
 
-| Pad | Note | Scale |
+| Pad | Note | Function |
 |---|---|---|
-| 1 | 52 | chromatic |
-| 2 | 53 | major |
-| 3 | 54 | minor |
-| 4 | 55 | dorian |
-| 5 | 56 | phrygian |
-| 6 | 57 | lydian |
-| 7 | 58 | mixolydian |
-| 8 | 59 | locrian |
-| 9 | 60 | pentatonic |
-| 10 | 61 | blues |
-| 11–16 | 62–67 | — (unassigned) |
+| 1 | 52 | Scale: chromatic |
+| 2 | 53 | Scale: major |
+| 3 | 54 | Scale: minor |
+| 4 | 55 | Scale: dorian |
+| 5 | 56 | Scale: phrygian |
+| 6 | 57 | Scale: lydian |
+| 7 | 58 | Scale: mixolydian |
+| 8 | 59 | Scale: locrian |
+| 9 | 60 | Scale: pentatonic |
+| 10 | 61 | Scale: blues |
+| 11 | 62 | Octave down (−1, min −2) |
+| 12 | 63 | Octave up (+1, max +2) |
+| 13–16 | 64–67 | — (unassigned) |
 
 ### Pad Bank C — Network Functions (notes 68–83, channel 10)
 
