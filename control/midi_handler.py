@@ -31,7 +31,9 @@ Note On  (MPD218 pads, channel 9)
 ────────────────────────────────
   Bank A  notes 36-51  → root note  (pitch class of pad, octave 4)
            velocity    → temporary drive boost
-  Bank B  notes 52-67  → scale / mode  (one pad per scale)
+  Bank B  notes 52-61  → scale / mode  (one pad per scale)
+           note 62     → octave down (pad 11)
+           note 63     → octave up   (pad 12)
   Bank C  notes 68-83  → network functions
            68  randomise weights
            69  reset potentials
@@ -110,6 +112,7 @@ class MIDIHandler:
         self.root_note  = 60          # C4
         self.scale_idx  = 1           # major
         self.scale_name = SCALE_NAMES[1]
+        self.octave_offset = 0        # octave transposition (-2 to +2)
 
         # internal: track absolute weight scale to avoid cumulative drift
         self._weight_scale = 1.0
@@ -360,14 +363,25 @@ class MIDIHandler:
 
         elif lo_b <= note <= hi_b:
             slot = note - lo_b
-            label = SCALE_NAMES[slot] if slot < len(SCALE_NAMES) else "---"
-            self._set_last_pad(note, "B", slot, label)
-            # ── Bank B : scale / mode selection ──────────────────────────────
-            idx = note - lo_b                       # 0-15
-            if idx < len(SCALE_NAMES):
-                self.scale_idx  = idx
-                self.scale_name = SCALE_NAMES[idx]
-            self._apply_tonality()
+            # ── Bank B : scale / mode selection & octave control ──────────────
+            if slot < len(SCALE_NAMES):
+                label = SCALE_NAMES[slot]
+                self._set_last_pad(note, "B", slot, label)
+                self.scale_idx  = slot
+                self.scale_name = SCALE_NAMES[slot]
+                self._apply_tonality()
+            elif slot == 11:  # octave down
+                self.octave_offset = max(-2, self.octave_offset - 1)
+                label = f"Oct{self.octave_offset:+d}"
+                self._set_last_pad(note, "B", slot, label)
+                self._apply_tonality()
+            elif slot == 12:  # octave up
+                self.octave_offset = min(2, self.octave_offset + 1)
+                label = f"Oct{self.octave_offset:+d}"
+                self._set_last_pad(note, "B", slot, label)
+                self._apply_tonality()
+            else:
+                self._set_last_pad(note, "B", slot, "---")
 
         elif lo_c <= note <= hi_c:
             slot = note - lo_c
@@ -377,9 +391,11 @@ class MIDIHandler:
             self._network_function(note - lo_c, velocity)
 
     def _apply_tonality(self) -> None:
-        """Recompute 16 preset frequencies from current root_note + scale_name."""
+        """Recompute 16 preset frequencies from current root_note + scale_name + octave_offset."""
         scale     = SCALES[self.scale_name]
-        root_freq = 440.0 * (2.0 ** ((self.root_note - 69) / 12.0))
+        # Apply octave offset to root note (12 semitones per octave)
+        adjusted_root = self.root_note + (self.octave_offset * 12)
+        root_freq = 440.0 * (2.0 ** ((adjusted_root - 69) / 12.0))
         freqs     = []
         for i in range(16):
             degree   = i % len(scale)
@@ -390,7 +406,9 @@ class MIDIHandler:
         self._network.frequencies = self._synth.get_operator_frequencies()
         self._cfg["root_note"]  = self.root_note
         self._cfg["scale_name"] = self.scale_name
-        print(f"[MIDI] Root {_note_name(self.root_note)}  Scale {self.scale_name}")
+        self._cfg["octave_offset"] = self.octave_offset
+        oct_str = f" Oct{self.octave_offset:+d}" if self.octave_offset != 0 else ""
+        print(f"[MIDI] Root {_note_name(self.root_note)}  Scale {self.scale_name}{oct_str}")
 
     def _network_function(self, func: int, velocity: int) -> None:
         """Execute a pad-triggered network function (Bank C, func = note - 68)."""

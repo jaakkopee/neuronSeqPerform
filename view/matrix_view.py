@@ -28,8 +28,8 @@ KNOB_CHEATSHEET = {
 PAD_CHEATSHEET_A = [NOTE_NAMES[i % 12] for i in range(16)]
 PAD_CHEATSHEET_B = [
     (SCALE_NAMES[i][:6] if i < len(SCALE_NAMES) else "---")
-    for i in range(16)
-]
+    for i in range(10)
+] + ["---", "Oct-", "Oct+", "---", "---", "---"]  # 16 total: pads 0-9 scales, 11-12 octave
 PAD_CHEATSHEET_C = [
     "RndW", "Reset", "+Step", "-Step", "Boost", "HalfW", "Topo-", "Topo+",
     "N--", "N++", "Het-", "Het+", "I--", "I++", "Dly-", "Dly+",
@@ -221,6 +221,7 @@ class MatrixView:
         line3 = (
             f"Scale: {cfg.get('scale_name', 'major')}   "
             f"Root: {cfg.get('root_note', 60)}   "
+            f"Oct: {cfg.get('octave_offset', 0):+d}   "
             f"LIF steps/tick: {cfg.get('lif_steps', 12)}   "
             f"AT target: {cfg.get('aftertouch_target', 'threshold')}"
         )

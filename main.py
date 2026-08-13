@@ -45,10 +45,12 @@ SCENE_KEY_TO_SLOT = {
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
-def _build_initial_freqs(root_midi: int = 60, scale_name: str = "major") -> list:
-    """Map 16 preset slots onto a scale starting from root_midi."""
+def _build_initial_freqs(root_midi: int = 60, scale_name: str = "major", octave_offset: int = 0) -> list:
+    """Map 16 preset slots onto a scale starting from root_midi, with optional octave offset."""
     scale     = SCALES[scale_name]
-    root_freq = 440.0 * (2.0 ** ((root_midi - 69) / 12.0))
+    # Apply octave offset to root note (12 semitones per octave)
+    adjusted_root = root_midi + (octave_offset * 12)
+    root_freq = 440.0 * (2.0 ** ((adjusted_root - 69) / 12.0))
     freqs     = []
     for i in range(COLS):
         degree   = i % len(scale)
@@ -60,16 +62,20 @@ def _build_initial_freqs(root_midi: int = 60, scale_name: str = "major") -> list
 
 def _get_dominant_tone_freqs(accumulated_spikes: np.ndarray, 
                               root_midi: int, 
-                              scale_name: str) -> np.ndarray:
+                              scale_name: str,
+                              octave_offset: int = 0) -> np.ndarray:
     """
     For each column, find the most active neuron (row) and map it to a scale degree.
     Returns frequencies for all 16 columns based on dominant neuron activity.
     
     Row indices 0-7 map to scale degrees 0-7 (mod scale length).
     Column index determines octave (same as original static mapping).
+    Octave offset adjusts the base frequency by 12 semitones per octave level.
     """
     scale = SCALES[scale_name]
-    root_freq = 440.0 * (2.0 ** ((root_midi - 69) / 12.0))
+    # Apply octave offset to root note (12 semitones per octave)
+    adjusted_root = root_midi + (octave_offset * 12)
+    root_freq = 440.0 * (2.0 ** ((adjusted_root - 69) / 12.0))
     
     freqs = np.zeros(COLS, dtype=np.float32)
     
@@ -263,12 +269,18 @@ def _apply_scene_updates(
             scale_name = candidate
             cfg["scale_name"] = candidate
 
-    if "root_note" in updates or "scale_name" in updates:
-        synth.set_all_base_freqs(_build_initial_freqs(root, scale_name))
+    octave_offset = int(cfg.get("octave_offset", 0))
+    if "octave_offset" in updates:
+        octave_offset = int(max(-2, min(2, round(float(updates["octave_offset"])))))
+        cfg["octave_offset"] = octave_offset
+
+    if "root_note" in updates or "scale_name" in updates or "octave_offset" in updates:
+        synth.set_all_base_freqs(_build_initial_freqs(root, scale_name, octave_offset))
         network.frequencies = synth.get_operator_frequencies()
         if midi is not None:
             midi.root_note = root
             midi.scale_name = scale_name
+            midi.octave_offset = octave_offset
             if scale_name in SCALE_NAMES:
                 midi.scale_idx = SCALE_NAMES.index(scale_name)
 
@@ -301,6 +313,7 @@ def main() -> None:
         # Bank B / status
         "scale_name":             "major",
         "root_note":              60,
+        "octave_offset":          0,
         "aftertouch_target":      "threshold",
         "lif_steps":              12,
         "topology_index":         0,
@@ -523,7 +536,8 @@ def main() -> None:
             # Map dominant neuron index (0-7) to scale degree for dynamic tone mapping
             root = int(config_state.get("root_note", 60))
             scale_name = str(config_state.get("scale_name", "major"))
-            dominant_freqs = _get_dominant_tone_freqs(accumulated, root, scale_name)
+            octave_offset = int(config_state.get("octave_offset", 0))
+            dominant_freqs = _get_dominant_tone_freqs(accumulated, root, scale_name, octave_offset)
             synth.set_all_base_freqs(dominant_freqs)
 
             # ── Set operator gains from neuron activation ──────────────────────
