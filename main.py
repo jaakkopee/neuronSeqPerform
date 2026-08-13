@@ -94,6 +94,35 @@ def _get_dominant_tone_freqs(accumulated_spikes: np.ndarray,
     return freqs
 
 
+def _get_operator_gains_from_neurons(accumulated_spikes: np.ndarray) -> np.ndarray:
+    """
+    Calculate operator gains from neuron activation per column.
+    
+    For each column, count spikes in each row and normalize to 0-1 gain values.
+    Each row's spike count directly drives the corresponding operator's gain.
+    
+    Returns:
+        (COLS, ROWS) array of normalized gain values 0.0-1.0
+    """
+    gains = np.zeros((COLS, ROWS), dtype=np.float32)
+    
+    for col in range(COLS):
+        # Count spikes per row in this column
+        row_spike_counts = accumulated_spikes[:, col] if accumulated_spikes.shape[1] > col else np.array([])
+        
+        if len(row_spike_counts) > 0:
+            # Normalize spike counts to 0-1 range
+            max_count = np.max(row_spike_counts)
+            if max_count > 0:
+                gains[col, :] = row_spike_counts / float(max_count)
+            else:
+                gains[col, :] = 0.0
+        else:
+            gains[col, :] = 0.0
+    
+    return gains
+
+
 def _compute_synchrony_index(spike_history: deque[np.ndarray]) -> float:
     """Return a bounded synchrony score in [0, 1] from recent spike frames.
 
@@ -496,6 +525,12 @@ def main() -> None:
             scale_name = str(config_state.get("scale_name", "major"))
             dominant_freqs = _get_dominant_tone_freqs(accumulated, root, scale_name)
             synth.set_all_base_freqs(dominant_freqs)
+
+            # ── Set operator gains from neuron activation ──────────────────────
+            # Override preset levels: operator gain = normalized spike count per row
+            # Use synth_spikes (downmixed 8×16) instead of raw accumulated (full LIF size)
+            operator_gains = _get_operator_gains_from_neurons(synth_spikes)
+            synth.set_operator_gains(current_step, operator_gains[current_step, :])
 
             # ── atomically activate voice + gate env from spikes ──────────────
             synth.trigger_and_activate(synth_spikes, current_step)

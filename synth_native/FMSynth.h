@@ -47,6 +47,12 @@ public:
     /** Switch active voice without updating envelopes. */
     void set_active_step(int step);
 
+    /**
+     * Override operator gains for a column from neuron activation.
+     * `gains` is (NUM_OPS,) with values 0.0-1.0 that replace preset levels.
+     */
+    void set_operator_gains(int col, const float* gains);
+
     // ── parameter control ─────────────────────────────────────────────────────
     void  set_mod_index_scale(float scale);
     void  set_active_pairs(int n);

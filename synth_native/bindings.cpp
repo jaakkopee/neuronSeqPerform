@@ -62,6 +62,14 @@ PYBIND11_MODULE(_fm_synth, m) {
         .def("set_active_step", &FMSynth::set_active_step,
              py::arg("step"))
 
+        .def("set_operator_gains",
+             [](FMSynth& self, int col,
+                py::array_t<float, py::array::c_style> gains) {
+                 self.set_operator_gains(col, gains.data());
+             },
+             py::arg("col"), py::arg("gains"),
+             "Override operator gains for a column from neuron activation.")
+
         // ── parameter control ─────────────────────────────────────────────────
         .def("set_mod_index_scale", &FMSynth::set_mod_index_scale, py::arg("scale"))
         .def("set_active_pairs",    &FMSynth::set_active_pairs,    py::arg("n"))

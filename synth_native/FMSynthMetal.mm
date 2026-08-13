@@ -121,6 +121,11 @@ struct FMSynth::Impl {
     int   pendingCount = 0;
     std::vector<float> last_good_output;
 
+    // ── operator gain overrides from neuron activation ────────────────────────
+    // When enabled, these override preset levels entirely for dynamic timbre control
+    float operator_gain_override[COLS][NUM_OPS]{};
+    bool  use_gain_override = false;
+
     void init_metal();
     void recompute_freqs();
 };
@@ -236,6 +241,13 @@ void FMSynth::trigger_and_activate(const float* spikes_float, int col) {
 void FMSynth::set_active_step(int step) {
     for (int i = 0; i < COLS; ++i)
         impl_->voice_active[i] = (i == step);
+}
+
+void FMSynth::set_operator_gains(int col, const float* gains) {
+    if (col < 0 || col >= COLS) return;
+    for (int op = 0; op < NUM_OPS; ++op)
+        impl_->operator_gain_override[col][op] = std::clamp(gains[op], 0.0f, 1.0f);
+    impl_->use_gain_override = true;
 }
 
 void FMSynth::set_mod_index_scale(float s)  { impl_->mod_index_scale = s; }
@@ -378,8 +390,13 @@ void FMSynth::generate(float* output, int frames) {
                     const float ec1 = ec0 + (tc - ec0) * ec_alpha;
                     const float em1 = em0 + (tm - em0) * em_alpha;
 
-                    pp.level_start = d.levels[col][c_op] * ec0;
-                    pp.level_end   = d.levels[col][c_op] * ec1;
+                    // Select level source: operator gain override or preset level
+                    float level_c = d.use_gain_override
+                                  ? d.operator_gain_override[col][c_op]
+                                  : d.levels[col][c_op];
+                    
+                    pp.level_start = level_c * ec0;
+                    pp.level_end   = level_c * ec1;
                     pp.mi_start    = d.mod_idx[col][m_op] * d.mod_index_scale * em0;
                     pp.mi_end      = d.mod_idx[col][m_op] * d.mod_index_scale * em1;
                     pp.phase_c     = d.phases[col][c_op];

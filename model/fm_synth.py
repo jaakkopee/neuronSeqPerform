@@ -87,6 +87,17 @@ class NativeFMSynth:
     def set_ratio_scale(self, scale: float) -> None:
         self._core.set_ratio_scale(float(scale))
 
+    def set_operator_gains(self, col: int, gains: np.ndarray) -> None:
+        """Override operator gains for a column from neuron activation.
+        
+        Args:
+            col: Voice/column index (0-15)
+            gains: (NUM_OPERATORS,) array of gain values 0.0-1.0, one per operator
+        """
+        # Call native backend method with gains as float32 array
+        arr = np.asarray(gains, dtype=np.float32)
+        self._core.set_operator_gains(col, arr)
+
     @property
     def master_volume(self) -> float:
         return self._core.master_volume
@@ -169,6 +180,12 @@ class FMSynth:
             self._voice_active = np.zeros(COLS, bool)
             self._voice_active[0] = True
 
+            # ── operator gain overrides from neuron activation (COLS × NUM_OPERATORS) 
+            # When set, these override preset levels entirely
+            self._operator_gain_override = np.zeros((COLS, NUM_OPERATORS), np.float64)
+            self._use_gain_override = False  # Flag to enable/disable override mode
+
+            # ── master volume ─────────────────────────────────────────────────────
             self.master_volume = 0.5
 
             self._load_presets()
@@ -260,6 +277,21 @@ class FMSynth:
                 self._ratio_scale = float(scale)
                 self._recompute_freqs()
 
+    def set_operator_gains(self, col: int, gains: np.ndarray) -> None:
+            """Override operator gains for a column from neuron activation.
+            
+            Args:
+                col: Voice/column index (0-15)
+                gains: (NUM_OPERATORS,) array of gain values 0.0-1.0, one per operator
+            
+            When enabled, these gains replace preset levels entirely, directly coupling
+            operator amplitude to neuron activation.
+            """
+            with self._lock:
+                if 0 <= col < COLS:
+                    self._operator_gain_override[col, :] = np.clip(gains, 0.0, 1.0)
+                    self._use_gain_override = True
+
     # ── audio generation (called from sounddevice callback thread) ────────────
     def generate(self, frames: int) -> np.ndarray:
             """
@@ -319,7 +351,15 @@ class FMSynth:
                     env_c1 = env_c1 * self._per_buf_carrier
                     env_m1 = env_m1 * self._per_buf_mod
 
-                    level_ramp = (self._levels[col, c_op]
+                    # ── select level source: preset or neuron-driven override ──────
+                    # If override is enabled, use operator gain directly from neuron activation
+                    # instead of preset levels
+                    if self._use_gain_override:
+                        level_scale = self._operator_gain_override[col, c_op]
+                    else:
+                        level_scale = self._levels[col, c_op]
+                    
+                    level_ramp = (level_scale
                                   * np.linspace(env_c0, env_c1, frames))
                     mi_ramp    = (self._mod_indices[col, m_op]
                                   * self._mod_index_scale
