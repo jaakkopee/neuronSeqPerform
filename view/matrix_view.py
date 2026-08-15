@@ -78,8 +78,10 @@ class MatrixView:
         
         # Initialize Metal renderer for GPU-accelerated grid rendering
         self._metal_renderer = MatrixViewMetalRenderer(8, 16, cell_width=24, gap_width=2)
-        self._grid_texture = None
-        self._grid_surface = None
+        # Cache surfaces to avoid memory leak from creating new surfaces every frame
+        self._grid_surface_rgba = None  # Full-resolution RGBA surface from Metal
+        self._grid_surface_scaled = None  # Scaled surface cached by size
+        self._last_scaled_size = None  # Track last scale size to avoid rebuilding
 
     def _toggle_fullscreen(self) -> None:
         if self._is_fullscreen:
@@ -171,6 +173,7 @@ class MatrixView:
 
         # Use Metal renderer to render grid cells to texture
         threshold = self.config_state.get("threshold", 1.0)
+        target_size = (w, h)
         try:
             # Render grid with Metal GPU acceleration
             texture_data = self._metal_renderer.render(
@@ -179,18 +182,31 @@ class MatrixView:
                 threshold
             )
             
-            # Convert NumPy array to Pygame surface and display
-            # texture_data shape is (height, width, 4) with RGBA channels
+            # Convert NumPy array to Pygame surface (CACHED to prevent memory leak)
+            # Only recreate scaled surface when window size changes, not every frame
             tex_h, tex_w = texture_data.shape[:2]
-            # Use frombuffer with RGBA format to create surface from byte data
-            self._grid_surface = pygame.image.frombuffer(
-                texture_data.tobytes(),
-                (tex_w, tex_h),
-                'RGBA'
-            )
-            self._grid_surface = pygame.transform.scale(self._grid_surface, (w, h))
-            self._screen.blit(self._grid_surface, (x, y))
+            if self._grid_surface_rgba is None or self._grid_surface_rgba.get_size() != (tex_w, tex_h):
+                # Texture size changed (grid rows/cols resized): recreate RGBA surface
+                self._grid_surface_rgba = pygame.image.frombuffer(
+                    texture_data.tobytes(),
+                    (tex_w, tex_h),
+                    'RGBA'
+                )
+                # Also recreate scaled surface since source changed
+                self._grid_surface_scaled = pygame.transform.scale(self._grid_surface_rgba, target_size)
+                self._last_scaled_size = target_size
+            elif self._last_scaled_size != target_size:
+                # Window size changed but texture is same: only rescale
+                self._grid_surface_scaled = pygame.transform.scale(self._grid_surface_rgba, target_size)
+                self._last_scaled_size = target_size
+            # else: both texture and window size unchanged, reuse cached scaled surface
             
+            self._screen.blit(self._grid_surface_scaled, (x, y))
+            
+        except Exception as e:
+            # Fallback to CPU rendering if Metal fails
+            print(f"[MatrixView] Metal render failed ({e}), falling back to CPU")
+            self._draw_grid_cpu(x, y, w, h, rows, cols)
         except Exception as e:
             # Fallback to CPU rendering if Metal fails
             print(f"[MatrixView] Metal render failed ({e}), falling back to CPU")
