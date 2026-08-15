@@ -23,7 +23,8 @@ struct RenderParams {
 
 MatrixViewNative::MatrixViewNative(uint32_t rows, uint32_t cols, uint32_t cell_width, uint32_t gap_width)
     : m_rows(rows), m_cols(cols), m_cell_width(cell_width), m_gap_width(gap_width),
-      m_device(nullptr), m_command_queue(nullptr), m_pipeline(nullptr)
+    m_device(nullptr), m_command_queue(nullptr), m_pipeline(nullptr),
+    m_potential_buffer(nullptr), m_spike_buffer(nullptr), m_output_buffer(nullptr)
 {
     // Calculate texture dimensions
     m_texture_width = cols * (cell_width + gap_width);
@@ -160,12 +161,33 @@ kernel void render_matrix(
         throw std::runtime_error("[MatrixViewNative] Pipeline creation failed");
     }
     m_pipeline = (__bridge_retained void*)pipeline;
+
+    // Preallocate reusable buffers to avoid per-frame Metal allocations.
+    size_t potential_size = static_cast<size_t>(m_rows) * static_cast<size_t>(m_cols) * sizeof(float);
+    size_t spike_size = static_cast<size_t>(m_rows) * static_cast<size_t>(m_cols) * sizeof(uint8_t);
+    size_t output_size = static_cast<size_t>(m_texture_width) * static_cast<size_t>(m_texture_height) * 4;
+
+    id<MTLBuffer> potential_buf = [device newBufferWithLength:potential_size
+                                                       options:MTLResourceStorageModeShared];
+    id<MTLBuffer> spike_buf = [device newBufferWithLength:spike_size
+                                                   options:MTLResourceStorageModeShared];
+    id<MTLBuffer> output_buf = [device newBufferWithLength:output_size
+                                                    options:MTLResourceStorageModeShared];
+    if (!potential_buf || !spike_buf || !output_buf) {
+        throw std::runtime_error("[MatrixViewNative] Failed to allocate render buffers");
+    }
+    m_potential_buffer = (__bridge_retained void*)potential_buf;
+    m_spike_buffer = (__bridge_retained void*)spike_buf;
+    m_output_buffer = (__bridge_retained void*)output_buf;
     
     printf("[MatrixViewNative] Initialized (%ux%u grid, %ux%u texture)\n",
            m_cols, m_rows, m_texture_width, m_texture_height);
 }
 
 MatrixViewNative::~MatrixViewNative() {
+    if (m_potential_buffer) CFRelease(m_potential_buffer);
+    if (m_spike_buffer) CFRelease(m_spike_buffer);
+    if (m_output_buffer) CFRelease(m_output_buffer);
     if (m_device) CFRelease(m_device);
     if (m_command_queue) CFRelease(m_command_queue);
     if (m_pipeline) CFRelease(m_pipeline);
@@ -176,52 +198,67 @@ std::vector<uint8_t> MatrixViewNative::render(
     const uint8_t* spikes,
     float threshold)
 {
-    id<MTLDevice> device = (__bridge id<MTLDevice>)m_device;
-    id<MTLCommandQueue> cmd_queue = (__bridge id<MTLCommandQueue>)m_command_queue;
-    id<MTLComputePipelineState> pipeline = (__bridge id<MTLComputePipelineState>)m_pipeline;
-    
-    // Create buffers
-    size_t potential_size = m_rows * m_cols * sizeof(float);
-    size_t spike_size = m_rows * m_cols * sizeof(uint8_t);
-    size_t output_size = m_texture_width * m_texture_height * 4; // RGBA
-    
-    id<MTLBuffer> potential_buf = [device newBufferWithBytes:(void*)potentials
-                                                      length:potential_size
-                                                     options:MTLResourceStorageModeShared];
-    id<MTLBuffer> spike_buf = [device newBufferWithBytes:(void*)spikes
-                                                  length:spike_size
-                                                 options:MTLResourceStorageModeShared];
-    id<MTLBuffer> output_buf = [device newBufferWithLength:output_size
-                                                   options:MTLResourceStorageModeShared];
-    
-    // Params
-    RenderParams params = {
-        m_rows, m_cols, m_cell_width, m_cell_width, m_gap_width,
-        m_texture_width, m_texture_height, threshold, 1.0, 0, 0.0
-    };
-    
-    // Encode
-    id<MTLCommandBuffer> cmd_buf = [cmd_queue commandBuffer];
-    id<MTLComputeCommandEncoder> encoder = [cmd_buf computeCommandEncoder];
-    
-    [encoder setComputePipelineState:pipeline];
-    [encoder setBuffer:output_buf offset:0 atIndex:0];
-    [encoder setBuffer:potential_buf offset:0 atIndex:1];
-    [encoder setBuffer:spike_buf offset:0 atIndex:2];
-    [encoder setBytes:&params length:sizeof(params) atIndex:3];
-    
-    MTLSize grid = MTLSizeMake(m_texture_width, m_texture_height, 1);
-    MTLSize threads = MTLSizeMake(pipeline.threadExecutionWidth, 
-                                   pipeline.maxTotalThreadsPerThreadgroup / pipeline.threadExecutionWidth, 1);
-    
-    [encoder dispatchThreads:grid threadsPerThreadgroup:threads];
-    [encoder endEncoding];
-    [cmd_buf commit];
-    [cmd_buf waitUntilCompleted];
-    
-    // Copy output
+    size_t output_size = static_cast<size_t>(m_texture_width) * static_cast<size_t>(m_texture_height) * 4;
     std::vector<uint8_t> result(output_size);
-    std::memcpy(result.data(), [output_buf contents], output_size);
-    
+    render_into(potentials, spikes, threshold, result.data(), result.size());
     return result;
+}
+
+void MatrixViewNative::render_into(
+    const float* potentials,
+    const uint8_t* spikes,
+    float threshold,
+    uint8_t* out_rgba,
+    size_t out_size)
+{
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)m_device;
+        id<MTLCommandQueue> cmd_queue = (__bridge id<MTLCommandQueue>)m_command_queue;
+        id<MTLComputePipelineState> pipeline = (__bridge id<MTLComputePipelineState>)m_pipeline;
+        id<MTLBuffer> potential_buf = (__bridge id<MTLBuffer>)m_potential_buffer;
+        id<MTLBuffer> spike_buf = (__bridge id<MTLBuffer>)m_spike_buffer;
+        id<MTLBuffer> output_buf = (__bridge id<MTLBuffer>)m_output_buffer;
+
+        size_t potential_size = static_cast<size_t>(m_rows) * static_cast<size_t>(m_cols) * sizeof(float);
+        size_t spike_size = static_cast<size_t>(m_rows) * static_cast<size_t>(m_cols) * sizeof(uint8_t);
+        size_t output_size = static_cast<size_t>(m_texture_width) * static_cast<size_t>(m_texture_height) * 4; // RGBA
+
+        if (!device || !cmd_queue || !pipeline || !potential_buf || !spike_buf || !output_buf) {
+            throw std::runtime_error("[MatrixViewNative] Renderer not initialized");
+        }
+        if (!potentials || !spikes || !out_rgba || out_size < output_size) {
+            throw std::runtime_error("[MatrixViewNative] Invalid render input/output buffer");
+        }
+
+        std::memcpy([potential_buf contents], potentials, potential_size);
+        std::memcpy([spike_buf contents], spikes, spike_size);
+
+        // Params
+        RenderParams params = {
+            m_rows, m_cols, m_cell_width, m_cell_width, m_gap_width,
+            m_texture_width, m_texture_height, threshold, 1.0, 0, 0.0
+        };
+
+        // Encode
+        id<MTLCommandBuffer> cmd_buf = [cmd_queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [cmd_buf computeCommandEncoder];
+
+        [encoder setComputePipelineState:pipeline];
+        [encoder setBuffer:output_buf offset:0 atIndex:0];
+        [encoder setBuffer:potential_buf offset:0 atIndex:1];
+        [encoder setBuffer:spike_buf offset:0 atIndex:2];
+        [encoder setBytes:&params length:sizeof(params) atIndex:3];
+
+        MTLSize grid = MTLSizeMake(m_texture_width, m_texture_height, 1);
+        MTLSize threads = MTLSizeMake(pipeline.threadExecutionWidth,
+                                       pipeline.maxTotalThreadsPerThreadgroup / pipeline.threadExecutionWidth, 1);
+
+        [encoder dispatchThreads:grid threadsPerThreadgroup:threads];
+        [encoder endEncoding];
+        [cmd_buf commit];
+        [cmd_buf waitUntilCompleted];
+
+        // Copy output into caller-owned buffer.
+        std::memcpy(out_rgba, [output_buf contents], output_size);
+    }
 }

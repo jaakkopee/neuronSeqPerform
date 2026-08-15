@@ -155,6 +155,32 @@ PYBIND11_MODULE(_fm_synth, m) {
              py::arg("gap_width") = 2,
              "Create Metal-accelerated matrix view renderer")
 
+          .def("render_into",
+                [](MatrixViewNative& self,
+                    py::array_t<float, py::array::c_style> potentials,
+                    py::array_t<uint8_t, py::array::c_style> spikes,
+                    float threshold,
+                    py::array_t<uint8_t, py::array::c_style> out) {
+                     auto out_buf = out.request();
+                     if (out_buf.ndim != 3) {
+                          throw std::runtime_error("render_into output must be 3D (H, W, 4)");
+                     }
+                     if (static_cast<size_t>(out_buf.shape[0]) != self.texture_height() ||
+                          static_cast<size_t>(out_buf.shape[1]) != self.texture_width() ||
+                          static_cast<size_t>(out_buf.shape[2]) != 4) {
+                          throw std::runtime_error("render_into output shape mismatch");
+                     }
+
+                     self.render_into(
+                          potentials.data(),
+                          spikes.data(),
+                          threshold,
+                          static_cast<uint8_t*>(out_buf.ptr),
+                          static_cast<size_t>(out_buf.size));
+                },
+                py::arg("potentials"), py::arg("spikes"), py::arg("threshold"), py::arg("out"),
+                "Render grid into preallocated RGBA8 output array (height×width×4).")
+
         .def("render",
              [](MatrixViewNative& self,
                 py::array_t<float, py::array::c_style> potentials,

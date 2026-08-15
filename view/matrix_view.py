@@ -178,6 +178,9 @@ class MatrixView:
                 self.spikes.astype(np.uint8),
                 threshold
             )
+
+            if not texture_data.flags["C_CONTIGUOUS"]:
+                texture_data = np.ascontiguousarray(texture_data)
             
             # STORE texture_data to keep it alive (required for frombuffer reference)
             self._cached_texture_data = texture_data
@@ -186,7 +189,7 @@ class MatrixView:
             # Data stays valid because self._cached_texture_data keeps it alive
             tex_h, tex_w = texture_data.shape[:2]
             grid_surface_rgba = pygame.image.frombuffer(
-                texture_data.tobytes(),
+                self._cached_texture_data,
                 (tex_w, tex_h),
                 'RGBA'
             )

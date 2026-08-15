@@ -4,6 +4,7 @@
 #ifndef MATRIX_VIEW_NATIVE_H
 #define MATRIX_VIEW_NATIVE_H
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 #include <memory>
@@ -22,6 +23,15 @@ public:
         const uint8_t* spikes,
         float threshold
     );
+
+    // Render directly into caller-provided RGBA8 buffer to avoid per-frame allocations.
+    void render_into(
+        const float* potentials,
+        const uint8_t* spikes,
+        float threshold,
+        uint8_t* out_rgba,
+        size_t out_size
+    );
     
     // Get output texture dimensions
     uint32_t texture_width() const { return m_texture_width; }
@@ -39,6 +49,9 @@ private:
     void* m_device;        // id<MTLDevice>
     void* m_command_queue; // id<MTLCommandQueue>
     void* m_pipeline;      // id<MTLComputePipelineState>
+    void* m_potential_buffer; // id<MTLBuffer>
+    void* m_spike_buffer;     // id<MTLBuffer>
+    void* m_output_buffer;    // id<MTLBuffer>
 };
 
 #endif

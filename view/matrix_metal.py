@@ -21,14 +21,20 @@ class MatrixViewMetalRenderer:
         self.cell_width = cell_width
         self.gap_width = gap_width
         self._native = None
+        self._native_texture = None
         
         if _native_ok:
             try:
                 self._native = MatrixViewNative(rows, cols, cell_width, gap_width)
+                self._native_texture = np.empty(
+                    (self._native.texture_height(), self._native.texture_width(), 4),
+                    dtype=np.uint8,
+                )
                 print(f"[MatrixView] Metal renderer initialized ({cols}×{rows} grid)")
             except Exception as e:
                 print(f"[MatrixView] Metal renderer init failed ({e}); using NumPy fallback")
                 self._native = None
+                self._native_texture = None
         else:
             print("[MatrixView] Metal backend not available; using NumPy fallback")
     
@@ -48,8 +54,9 @@ class MatrixViewMetalRenderer:
         spikes = np.asarray(spikes, dtype=np.uint8)
         
         if self._native is not None:
-            # Use Metal renderer
-            return self._native.render(potentials, spikes, threshold)
+            # Use Metal renderer with reusable output buffer to avoid per-frame allocations.
+            self._native.render_into(potentials, spikes, threshold, self._native_texture)
+            return self._native_texture
         else:
             # NumPy fallback: simple colormap rendering
             return self._render_numpy_fallback(potentials, spikes, threshold)
