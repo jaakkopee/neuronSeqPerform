@@ -81,6 +81,7 @@ ext = Extension(
     sources=[
         os.path.join(BASE_DIR, "FMSynthMetal.mm"),   # compiled to .o by ObjCppBuildExt above
         os.path.join(BASE_DIR, "LIFNetworkNative.mm"),
+        os.path.join(BASE_DIR, "MatrixViewNative.mm"),
         os.path.join(BASE_DIR, "bindings.cpp"),
     ],
     include_dirs=[

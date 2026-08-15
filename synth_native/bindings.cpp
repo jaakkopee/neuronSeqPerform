@@ -7,8 +7,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <vector>
+#include <cstddef>
+#include <algorithm>
 #include "FMSynth.h"
 #include "LIFNetworkNative.h"
+#include "MatrixViewNative.h"
 
 namespace py = pybind11;
 
@@ -142,4 +146,31 @@ PYBIND11_MODULE(_fm_synth, m) {
                  self.get_potentials(out.mutable_data());
                  return out;
              });
+
+    // ── MatrixViewNative: Metal-accelerated grid renderer ────────────────────
+    py::class_<MatrixViewNative>(m, "MatrixViewNative")
+        .def(py::init<uint32_t, uint32_t, uint32_t, uint32_t>(),
+             py::arg("rows"), py::arg("cols"),
+             py::arg("cell_width") = 24,
+             py::arg("gap_width") = 2,
+             "Create Metal-accelerated matrix view renderer")
+
+        .def("render",
+             [](MatrixViewNative& self,
+                py::array_t<float, py::array::c_style> potentials,
+                py::array_t<uint8_t, py::array::c_style> spikes,
+                float threshold) {
+                 auto result = self.render(potentials.data(), spikes.data(), threshold);
+                 // Create shape for output array (height, width, 4)
+                 std::vector<size_t> shape = {self.texture_height(), self.texture_width(), 4};
+                 auto out = py::array_t<uint8_t>(shape);
+                 auto buf = out.request();
+                 std::copy(result.begin(), result.end(), (uint8_t*)buf.ptr);
+                 return out;
+             },
+             py::arg("potentials"), py::arg("spikes"), py::arg("threshold"),
+             "Render grid to RGBA8 texture (height×width×4 array)")
+
+        .def("texture_width", &MatrixViewNative::texture_width)
+        .def("texture_height", &MatrixViewNative::texture_height);
 }

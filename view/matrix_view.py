@@ -1,4 +1,4 @@
-"""Dynamic neuron-grid renderer with filled, colorful rectangular cells."""
+"""Dynamic neuron-grid renderer with Metal-accelerated GPU rendering."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import numpy as np
 import pygame
 
 from config import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, SCALE_NAMES
+from view.matrix_metal import MatrixViewMetalRenderer
 
 
 BG_TOP = (10, 14, 28)
@@ -74,6 +75,11 @@ class MatrixView:
 
         self._fade = np.zeros((8, 16), dtype=np.float32)
         self._pad_fade: dict[int, float] = {}
+        
+        # Initialize Metal renderer for GPU-accelerated grid rendering
+        self._metal_renderer = MatrixViewMetalRenderer(8, 16, cell_width=24, gap_width=2)
+        self._grid_texture = None
+        self._grid_surface = None
 
     def _toggle_fullscreen(self) -> None:
         if self._is_fullscreen:
@@ -95,6 +101,15 @@ class MatrixView:
         if self._fade.shape != self.spikes.shape:
             # Spike grid is the authoritative visual shape during live resizes.
             self._fade = np.zeros(self.spikes.shape, dtype=np.float32)
+            # Recreate Metal renderer for new grid dimensions
+            try:
+                self._metal_renderer = MatrixViewMetalRenderer(
+                    self.spikes.shape[0], self.spikes.shape[1], 
+                    cell_width=24, gap_width=2
+                )
+            except Exception as e:
+                print(f"[MatrixView] Failed to recreate renderer: {e}")
+        
         self._fade = np.where(self.spikes, 1.0, self._fade).astype(np.float32)
 
     def draw(self) -> None:
@@ -154,6 +169,49 @@ class MatrixView:
             border_radius=6,
         )
 
+        # Use Metal renderer to render grid cells to texture
+        threshold = self.config_state.get("threshold", 1.0)
+        try:
+            # Render grid with Metal GPU acceleration
+            texture_data = self._metal_renderer.render(
+                self.potentials, 
+                self.spikes.astype(np.uint8),
+                threshold
+            )
+            
+            # Convert NumPy array to Pygame surface and display
+            # texture_data shape is (height, width, 4) with RGBA channels
+            tex_h, tex_w = texture_data.shape[:2]
+            # Use frombuffer with RGBA format to create surface from byte data
+            self._grid_surface = pygame.image.frombuffer(
+                texture_data.tobytes(),
+                (tex_w, tex_h),
+                'RGBA'
+            )
+            self._grid_surface = pygame.transform.scale(self._grid_surface, (w, h))
+            self._screen.blit(self._grid_surface, (x, y))
+            
+        except Exception as e:
+            # Fallback to CPU rendering if Metal fails
+            print(f"[MatrixView] Metal render failed ({e}), falling back to CPU")
+            self._draw_grid_cpu(x, y, w, h, rows, cols)
+        
+        # Thin lattice lines make dense topologies readable even with 4k neurons.
+        line_c = (24, 30, 52)
+        for c in range(1, cols):
+            lx = x + int(c * cw)
+            pygame.draw.line(self._screen, line_c, (lx, y), (lx, y + h), 1)
+        for r in range(1, rows):
+            ly = y + int(r * ch)
+            pygame.draw.line(self._screen, line_c, (x, ly), (x + w, ly), 1)
+
+        pygame.draw.rect(self._screen, STEP_HIGHLIGHT, (hx, y + h - 5, max(2, int(cw)), 4), border_radius=2)
+    
+    def _draw_grid_cpu(self, x: int, y: int, w: int, h: int, rows: int, cols: int) -> None:
+        """CPU-based fallback grid rendering."""
+        cw = w / cols
+        ch = h / rows
+        
         for r in range(rows):
             for c in range(cols):
                 pot = float(self.potentials[r, c]) if r < self.potentials.shape[0] and c < self.potentials.shape[1] else 0.0
@@ -179,17 +237,6 @@ class MatrixView:
                 rw = max(1, int(cw) - 2)
                 rh = max(1, int(ch) - 2)
                 pygame.draw.rect(self._screen, col, (rx, ry, rw, rh), border_radius=2)
-
-        # Thin lattice lines make dense topologies readable even with 4k neurons.
-        line_c = (24, 30, 52)
-        for c in range(1, cols):
-            lx = x + int(c * cw)
-            pygame.draw.line(self._screen, line_c, (lx, y), (lx, y + h), 1)
-        for r in range(1, rows):
-            ly = y + int(r * ch)
-            pygame.draw.line(self._screen, line_c, (x, ly), (x + w, ly), 1)
-
-        pygame.draw.rect(self._screen, STEP_HIGHLIGHT, (hx, y + h - 5, max(2, int(cw)), 4), border_radius=2)
 
     def _draw_status_panel(self) -> None:
         win_w, win_h = self._screen.get_size()
